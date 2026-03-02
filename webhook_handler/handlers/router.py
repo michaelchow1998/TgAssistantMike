@@ -15,6 +15,7 @@ from bot_constants import (
     CONV_MODULE_SCHEDULE,
     CONV_MODULE_TODO,
     CONV_MODULE_WORK,
+    CONV_MODULE_FINANCE,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,8 +26,6 @@ logger = logging.getLogger(__name__)
 # ================================================================
 
 def route_update(update):
-    """Dispatch a Telegram Update to the right handler."""
-
     if "callback_query" in update:
         _handle_callback_query(update["callback_query"])
         return
@@ -194,19 +193,30 @@ def _route_command(user_id, chat_id, text):
         from handlers.work import handle_deadlines
         handle_deadlines(user_id, chat_id)
 
-    # ----- Finance (placeholders) -----
+    # ----- Finance -----
     elif cmd == "/add_payment":
-        _placeholder(chat_id, cmd)
+        from handlers.finance import handle_add_payment
+        handle_add_payment(user_id, chat_id)
+
     elif cmd == "/add_income":
-        _placeholder(chat_id, cmd)
+        from handlers.finance import handle_add_income
+        handle_add_income(user_id, chat_id)
+
     elif cmd == "/add_expense":
-        _placeholder(chat_id, cmd)
+        from handlers.finance import handle_add_expense
+        handle_add_expense(user_id, chat_id)
+
     elif cmd == "/payments":
-        _placeholder(chat_id, cmd)
+        from handlers.finance import handle_payments
+        handle_payments(user_id, chat_id)
+
     elif cmd == "/paid":
-        _placeholder(chat_id, cmd)
+        from handlers.finance import handle_paid
+        handle_paid(user_id, chat_id, args)
+
     elif cmd == "/finance_summary":
-        _placeholder(chat_id, cmd)
+        from handlers.finance import handle_finance_summary
+        handle_finance_summary(user_id, chat_id)
 
     # ----- Subscription (placeholders) -----
     elif cmd == "/add_sub":
@@ -307,9 +317,9 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
         from handlers.work import handle_step
         handle_step(user_id, chat_id, text, step, data)
 
-    # elif module == CONV_MODULE_FINANCE:
-    #     from handlers.finance import handle_step
-    #     handle_step(user_id, chat_id, text, step, data)
+    elif module == CONV_MODULE_FINANCE:
+        from handlers.finance import handle_step
+        handle_step(user_id, chat_id, text, step, data)
 
     # elif module == CONV_MODULE_SUBSCRIPTION:
     #     from handlers.subscription import handle_step
@@ -350,9 +360,9 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
         from handlers.work import handle_callback
         handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
-    # elif module == CONV_MODULE_FINANCE:
-    #     from handlers.finance import handle_callback
-    #     handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+    elif module == CONV_MODULE_FINANCE:
+        from handlers.finance import handle_callback
+        handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
     # elif module == CONV_MODULE_SUBSCRIPTION:
     #     from handlers.subscription import handle_callback
