@@ -115,6 +115,7 @@ CONV_MODULE_FINANCE = "finance"
 CONV_MODULE_SUBSCRIPTION = "subscription"
 CONV_MODULE_RESUME_SUB = "resume_sub"
 CONV_MODULE_EDIT_SUB = "edit_sub"
+CONV_MODULE_EDIT_FIN = "edit_fin"
 
 # ===== Conversation =====
 CONV_TTL_SECONDS = 30 * 60  # 30 minutes
@@ -137,11 +138,12 @@ MODULE_DISPLAY_NAMES = {
     CONV_MODULE_SUBSCRIPTION: "新增訂閱",
     CONV_MODULE_RESUME_SUB: "恢復訂閱",
     CONV_MODULE_EDIT_SUB: "編輯訂閱",
+    CONV_MODULE_EDIT_FIN: "編輯財務",
 }
 
 # ===== Commands that start conversations =====
 CONVERSATION_STARTER_COMMANDS = {
     "/add_schedule", "/add_todo", "/add_work",
     "/add_payment", "/add_income", "/add_expense",
-    "/add_sub", "/resume_sub", "/edit_sub",
+    "/add_sub", "/resume_sub", "/edit_sub", "/edit_fin",
 }
