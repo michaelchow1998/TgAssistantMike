@@ -258,23 +258,24 @@ def _route_command(user_id, chat_id, text):
         from handlers.subscription import handle_sub_cost
         handle_sub_cost(user_id, chat_id)
 
-    # ----- Query (placeholders) -----
+    # ----- Query -----
     elif cmd == "/summary":
-        _placeholder(chat_id, cmd)
+        from handlers.query import handle_summary
+        handle_summary(user_id, chat_id)
+
     elif cmd == "/search":
-        _placeholder(chat_id, cmd)
+        from handlers.query import handle_search
+        handle_search(user_id, chat_id, args)
+
     elif cmd == "/monthly_report":
-        _placeholder(chat_id, cmd)
+        from handlers.query import handle_monthly_report
+        handle_monthly_report(user_id, chat_id)
 
     else:
         send_message(
             chat_id,
             f"❌ 未知指令：{cmd}\n\n輸入 /help 查看可用指令。",
         )
-
-
-def _placeholder(chat_id, cmd):
-    send_message(chat_id, f"🚧 指令 `{cmd}` 尚未實作。")
 
 
 # ================================================================
@@ -402,11 +403,8 @@ def _handle_standalone_callback(user_id, chat_id, message_id, data):
         "callback_data": data,
     }))
 
-    # Subscription cancel confirmation
     if data.startswith("cancelsub_"):
         from handlers.subscription import handle_standalone_callback
         handled = handle_standalone_callback(user_id, chat_id, message_id, data)
         if handled:
             return
-
-    # Future standalone callbacks can be added here
