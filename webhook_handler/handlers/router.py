@@ -16,6 +16,9 @@ from bot_constants import (
     CONV_MODULE_TODO,
     CONV_MODULE_WORK,
     CONV_MODULE_FINANCE,
+    CONV_MODULE_SUBSCRIPTION,
+    CONV_MODULE_RESUME_SUB,
+    CONV_MODULE_EDIT_SUB,
 )
 
 logger = logging.getLogger(__name__)
@@ -218,25 +221,42 @@ def _route_command(user_id, chat_id, text):
         from handlers.finance import handle_finance_summary
         handle_finance_summary(user_id, chat_id)
 
-    # ----- Subscription (placeholders) -----
+    # ----- Subscription -----
     elif cmd == "/add_sub":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_add_sub
+        handle_add_sub(user_id, chat_id)
+
     elif cmd == "/subs":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_subs
+        handle_subs(user_id, chat_id)
+
     elif cmd == "/sub_due":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_sub_due
+        handle_sub_due(user_id, chat_id)
+
     elif cmd == "/renew_sub":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_renew_sub
+        handle_renew_sub(user_id, chat_id, args)
+
     elif cmd == "/pause_sub":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_pause_sub
+        handle_pause_sub(user_id, chat_id, args)
+
     elif cmd == "/resume_sub":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_resume_sub
+        handle_resume_sub(user_id, chat_id, args)
+
     elif cmd == "/cancel_sub":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_cancel_sub
+        handle_cancel_sub(user_id, chat_id, args)
+
     elif cmd == "/edit_sub":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_edit_sub
+        handle_edit_sub(user_id, chat_id, args)
+
     elif cmd == "/sub_cost":
-        _placeholder(chat_id, cmd)
+        from handlers.subscription import handle_sub_cost
+        handle_sub_cost(user_id, chat_id)
 
     # ----- Query (placeholders) -----
     elif cmd == "/summary":
@@ -321,9 +341,9 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
         from handlers.finance import handle_step
         handle_step(user_id, chat_id, text, step, data)
 
-    # elif module == CONV_MODULE_SUBSCRIPTION:
-    #     from handlers.subscription import handle_step
-    #     handle_step(user_id, chat_id, text, step, data)
+    elif module in (CONV_MODULE_SUBSCRIPTION, CONV_MODULE_RESUME_SUB, CONV_MODULE_EDIT_SUB):
+        from handlers.subscription import handle_step as sub_handle_step
+        sub_handle_step(user_id, chat_id, text, step, data)
 
     else:
         send_message(
@@ -364,9 +384,9 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
         from handlers.finance import handle_callback
         handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
-    # elif module == CONV_MODULE_SUBSCRIPTION:
-    #     from handlers.subscription import handle_callback
-    #     handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+    elif module in (CONV_MODULE_SUBSCRIPTION, CONV_MODULE_RESUME_SUB, CONV_MODULE_EDIT_SUB):
+        from handlers.subscription import handle_callback as sub_handle_callback
+        sub_handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
     else:
         logger.warning(f"No callback handler for module: {module}")
@@ -381,3 +401,12 @@ def _handle_standalone_callback(user_id, chat_id, message_id, data):
         "event_type": "standalone_callback",
         "callback_data": data,
     }))
+
+    # Subscription cancel confirmation
+    if data.startswith("cancelsub_"):
+        from handlers.subscription import handle_standalone_callback
+        handled = handle_standalone_callback(user_id, chat_id, message_id, data)
+        if handled:
+            return
+
+    # Future standalone callbacks can be added here
