@@ -15,6 +15,7 @@ dependencies/python/
 
 # ===== Secrets =====
 .env
+/.env
 
 # ===== IDE =====
 .idea/
