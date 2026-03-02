@@ -1,0 +1,422 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Secretary Bot - Personal Telegram Bot on AWS Serverless
+  Lambda + API Gateway + DynamoDB + EventBridge Scheduler
+
+# ============================================================
+# Parameters
+# ============================================================
+Parameters:
+  AlertEmail:
+    Type: String
+    Description: Email for CloudWatch alarm notifications (leave empty to skip)
+    Default: ""
+
+Conditions:
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+
+# ============================================================
+# Globals
+# ============================================================
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures:
+      - arm64
+    MemorySize: 256
+    Environment:
+      Variables:
+        MAIN_TABLE_NAME: !Ref BotMainTable
+        CONV_TABLE_NAME: !Ref BotConversationTable
+        TIMEZONE: "Asia/Hong_Kong"
+        LOG_LEVEL: "INFO"
+
+# ============================================================
+# Resources
+# ============================================================
+Resources:
+
+  # ----------------------------------------------------------
+  # Lambda Layers
+  # ----------------------------------------------------------
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: bot-dependencies
+      Description: "Third-party packages: httpx, pytz, python-ulid"
+      ContentUri: dependencies/
+      CompatibleRuntimes:
+        - python3.13
+      CompatibleArchitectures:
+        - arm64
+
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: bot-shared-code
+      Description: "Shared modules: config, db, telegram, utils, constants"
+      ContentUri: shared/
+      CompatibleRuntimes:
+        - python3.13
+      CompatibleArchitectures:
+        - arm64
+
+  # ----------------------------------------------------------
+  # API Gateway (HTTP API v2)
+  # ----------------------------------------------------------
+  BotHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+
+  # ----------------------------------------------------------
+  # Lambda Functions
+  # ----------------------------------------------------------
+  WebhookHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: bot-webhook-handler
+      Description: Handles Telegram webhook requests
+      CodeUri: webhook_handler/
+      Handler: lambda_function.lambda_handler
+      Timeout: 30
+      Layers:
+        - !Ref DependenciesLayer
+        - !Ref SharedLayer
+      Events:
+        WebhookPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BotHttpApi
+            Path: /webhook/{proxy+}
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BotMainTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BotConversationTable
+        - SSMParameterReadPolicy:
+            ParameterName: "bot/*"
+
+  ReminderHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: bot-reminder-handler
+      Description: Handles scheduled reminders
+      CodeUri: reminder_handler/
+      Handler: lambda_function.lambda_handler
+      Timeout: 60
+      Layers:
+        - !Ref DependenciesLayer
+        - !Ref SharedLayer
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BotMainTable
+        - SSMParameterReadPolicy:
+            ParameterName: "bot/*"
+
+  # ----------------------------------------------------------
+  # CloudWatch Log Groups (30-day retention)
+  # ----------------------------------------------------------
+  WebhookLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/bot-webhook-handler
+      RetentionInDays: 30
+
+  ReminderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/bot-reminder-handler
+      RetentionInDays: 30
+
+  # ----------------------------------------------------------
+  # DynamoDB Tables
+  # ----------------------------------------------------------
+  BotMainTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: BotMainTable
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI_Type_Date
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: GSI_Category
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: GSI_ShortID
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  BotConversationTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    Properties:
+      TableName: BotConversationTable
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expire_at
+        Enabled: true
+
+  # ----------------------------------------------------------
+  # EventBridge Scheduler
+  # ----------------------------------------------------------
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: bot-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeReminderLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt ReminderHandlerFunction.Arn
+
+  MorningReminder:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: morning-reminder
+      Description: "Daily morning reminder at 08:00 HKT"
+      State: ENABLED
+      ScheduleExpression: "cron(0 8 * * ? *)"
+      ScheduleExpressionTimezone: Asia/Hong_Kong
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt ReminderHandlerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"reminder_type": "morning"}'
+        RetryPolicy:
+          MaximumRetryAttempts: 2
+
+  SubscriptionAlert:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: subscription-alert
+      Description: "Daily subscription due alert at 10:00 HKT"
+      State: ENABLED
+      ScheduleExpression: "cron(0 10 * * ? *)"
+      ScheduleExpressionTimezone: Asia/Hong_Kong
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt ReminderHandlerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"reminder_type": "subscription_alert"}'
+        RetryPolicy:
+          MaximumRetryAttempts: 2
+
+  PaymentAlert:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: payment-alert
+      Description: "Daily payment due alert at 12:00 HKT"
+      State: ENABLED
+      ScheduleExpression: "cron(0 12 * * ? *)"
+      ScheduleExpressionTimezone: Asia/Hong_Kong
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt ReminderHandlerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"reminder_type": "payment_alert"}'
+        RetryPolicy:
+          MaximumRetryAttempts: 2
+
+  EveningReminder:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: evening-reminder
+      Description: "Daily evening reminder at 21:00 HKT"
+      State: ENABLED
+      ScheduleExpression: "cron(0 21 * * ? *)"
+      ScheduleExpressionTimezone: Asia/Hong_Kong
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt ReminderHandlerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"reminder_type": "evening"}'
+        RetryPolicy:
+          MaximumRetryAttempts: 2
+
+  # ----------------------------------------------------------
+  # SNS Topic (Alarm Notifications)
+  # ----------------------------------------------------------
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: bot-alerts
+
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # ----------------------------------------------------------
+  # CloudWatch Alarms
+  # ----------------------------------------------------------
+  WebhookErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: bot-webhook-errors
+      AlarmDescription: "Webhook Lambda errors > 3 in 5 minutes"
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WebhookHandlerFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+
+  WebhookThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: bot-webhook-throttles
+      AlarmDescription: "Webhook Lambda throttled"
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WebhookHandlerFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+
+  WebhookDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: bot-webhook-duration
+      AlarmDescription: "Webhook Lambda P95 duration > 10s"
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WebhookHandlerFunction
+      ExtendedStatistic: p95
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10000
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+
+  Api5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: bot-api-5xx
+      AlarmDescription: "API Gateway 5xx errors"
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref BotHttpApi
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+
+# ============================================================
+# Outputs
+# ============================================================
+Outputs:
+  WebhookUrl:
+    Description: "API Gateway endpoint (append your secret path after /webhook/)"
+    Value: !Sub "https://${BotHttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook/"
+
+  WebhookHandlerFunctionArn:
+    Description: "Webhook Handler Lambda ARN"
+    Value: !GetAtt WebhookHandlerFunction.Arn
+
+  ReminderHandlerFunctionArn:
+    Description: "Reminder Handler Lambda ARN"
+    Value: !GetAtt ReminderHandlerFunction.Arn
+
+  MainTableName:
+    Description: "DynamoDB Main Table"
+    Value: !Ref BotMainTable
+
+  ConversationTableName:
+    Description: "DynamoDB Conversation Table"
+    Value: !Ref BotConversationTable
+
+  AlertTopicArn:
+    Description: "SNS Alert Topic ARN"
+    Value: !Ref AlertTopic

@@ -1,0 +1,12 @@
+# Ignore environment files
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+.idea/
+
+# data
+static/data/
+static/logs/
+static/results/
