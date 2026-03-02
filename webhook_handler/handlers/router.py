@@ -14,6 +14,7 @@ from bot_constants import (
     MODULE_DISPLAY_NAMES,
     CONV_MODULE_SCHEDULE,
     CONV_MODULE_TODO,
+    CONV_MODULE_WORK,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,6 @@ def _verify_owner(user_id, chat_id):
 # ================================================================
 
 def _handle_text_message(user_id, chat_id, text):
-    # /cancel is always honoured, even mid-conversation
     if text.lower() == "/cancel":
         _handle_cancel(user_id, chat_id)
         return
@@ -79,13 +79,11 @@ def _handle_text_message(user_id, chat_id, text):
     conv = get_conversation(user_id)
 
     if conv:
-        # If user starts a *new* conversation command → override
         cmd = _extract_command(text)
         if cmd in CONVERSATION_STARTER_COMMANDS:
             _route_command(user_id, chat_id, text)
             return
 
-        # Any other slash-command while in conversation → warn
         if text.startswith("/"):
             module = conv.get("module", "")
             display = MODULE_DISPLAY_NAMES.get(module, module)
@@ -95,11 +93,9 @@ def _handle_text_message(user_id, chat_id, text):
             )
             return
 
-        # Regular text → feed into conversation step
         _handle_conversation_step(user_id, chat_id, text, conv)
         return
 
-    # No active conversation
     if text.startswith("/"):
         _route_command(user_id, chat_id, text)
     else:
@@ -120,7 +116,6 @@ def _handle_cancel(user_id, chat_id):
 # ================================================================
 
 def _extract_command(text):
-    """Return the /command portion, stripped of @botname suffix."""
     cmd = text.split()[0].lower()
     if "@" in cmd:
         cmd = cmd.split("@")[0]
@@ -182,15 +177,22 @@ def _route_command(user_id, chat_id, text):
         from handlers.todo import handle_del_todo
         handle_del_todo(user_id, chat_id, args)
 
-    # ----- Work (placeholders) -----
+    # ----- Work -----
     elif cmd == "/add_work":
-        _placeholder(chat_id, cmd)
+        from handlers.work import handle_add_work
+        handle_add_work(user_id, chat_id)
+
     elif cmd == "/work":
-        _placeholder(chat_id, cmd)
+        from handlers.work import handle_work
+        handle_work(user_id, chat_id)
+
     elif cmd == "/update_progress":
-        _placeholder(chat_id, cmd)
+        from handlers.work import handle_update_progress
+        handle_update_progress(user_id, chat_id, args)
+
     elif cmd == "/deadlines":
-        _placeholder(chat_id, cmd)
+        from handlers.work import handle_deadlines
+        handle_deadlines(user_id, chat_id)
 
     # ----- Finance (placeholders) -----
     elif cmd == "/add_payment":
@@ -242,7 +244,6 @@ def _route_command(user_id, chat_id, text):
 
 
 def _placeholder(chat_id, cmd):
-    """Temporary stub for not-yet-implemented commands."""
     send_message(chat_id, f"🚧 指令 `{cmd}` 尚未實作。")
 
 
@@ -267,10 +268,8 @@ def _handle_callback_query(callback_query):
         "callback_data": data,
     }))
 
-    # Always dismiss the loading spinner
     answer_callback_query(callback_id)
 
-    # If there's an active conversation, route callback there
     conv = get_conversation(user_id)
     if conv:
         _handle_conversation_callback(
@@ -278,7 +277,6 @@ def _handle_callback_query(callback_query):
         )
         return
 
-    # Standalone callbacks (e.g. cancelsub_confirm_{id})
     _handle_standalone_callback(user_id, chat_id, message_id, data)
 
 
@@ -287,7 +285,6 @@ def _handle_callback_query(callback_query):
 # ================================================================
 
 def _handle_conversation_step(user_id, chat_id, text, conv):
-    """Dispatch text input to the active conversation's module handler."""
     module = conv.get("module")
     step = conv.get("step")
     data = conv.get("data", {})
@@ -306,9 +303,9 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
         from handlers.todo import handle_step
         handle_step(user_id, chat_id, text, step, data)
 
-    # elif module == CONV_MODULE_WORK:
-    #     from handlers.work import handle_step
-    #     handle_step(user_id, chat_id, text, step, data)
+    elif module == CONV_MODULE_WORK:
+        from handlers.work import handle_step
+        handle_step(user_id, chat_id, text, step, data)
 
     # elif module == CONV_MODULE_FINANCE:
     #     from handlers.finance import handle_step
@@ -330,7 +327,6 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
 # ================================================================
 
 def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
-    """Dispatch callback to the active conversation's module handler."""
     module = conv.get("module")
     step = conv.get("step")
     conv_data = conv.get("data", {})
@@ -350,9 +346,9 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
         from handlers.todo import handle_callback
         handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
-    # elif module == CONV_MODULE_WORK:
-    #     from handlers.work import handle_callback
-    #     handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+    elif module == CONV_MODULE_WORK:
+        from handlers.work import handle_callback
+        handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
     # elif module == CONV_MODULE_FINANCE:
     #     from handlers.finance import handle_callback
@@ -371,8 +367,6 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
 # ================================================================
 
 def _handle_standalone_callback(user_id, chat_id, message_id, data):
-    """Handle callbacks outside any active conversation."""
-    # Future: cancelsub_confirm_{id}, cancelsub_keep_{id}, etc.
     logger.info(json.dumps({
         "event_type": "standalone_callback",
         "callback_data": data,
