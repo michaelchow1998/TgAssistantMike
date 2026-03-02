@@ -116,21 +116,34 @@ def handle_summary(user_id, chat_id):
         t for t in todos
         if t.get("due_date") and t["due_date"] != NO_DUE_DATE_SENTINEL and t["due_date"] < today
     ]
-    today_todos = [
-        t for t in todos
-        if t.get("due_date") == today
-    ]
+
+    # Sort all pending todos: priority ASC (1=high), then due_date ASC (no-date last)
+    def _todo_sort_key(t):
+        pri = int(t.get("priority", 3))
+        due = t.get("due_date", "") or NO_DUE_DATE_SENTINEL
+        return (pri, due)
+
+    sorted_todos = sorted(todos, key=_todo_sort_key)
+    top_todos = sorted_todos[:5]
 
     lines.append(f"📝 *待辦事項*（{len(todos)} 筆待完成）")
     if overdue_todos:
         lines.append(f"  ⚠️ {len(overdue_todos)} 筆已逾期")
-    if today_todos:
-        for t in today_todos:
+    if top_todos:
+        for t in top_todos:
             pri = int(t.get("priority", 3))
             pri_emoji = TODO_PRIORITIES.get(pri, {}).get("emoji", "⚪")
-            lines.append(f"  {pri_emoji} {escape_markdown(t.get('title', ''))}")
-    elif not overdue_todos:
-        lines.append("  今天沒有到期待辦 ✅")
+            due = t.get("due_date", "")
+            if due and due != NO_DUE_DATE_SENTINEL:
+                overdue_mark = " ⚠️" if due < today else ""
+                due_text = f"  📆 {format_date_short(due)}{overdue_mark}"
+            else:
+                due_text = ""
+            lines.append(f"  {pri_emoji} {escape_markdown(t.get('title', ''))}{due_text}")
+        if len(todos) > 5:
+            lines.append(f"  …共 {len(todos)} 筆，輸入 /todos 查看全部")
+    else:
+        lines.append("  目前沒有待辦事項 ✅")
     lines.append("")
 
     # ----- Work in progress -----
