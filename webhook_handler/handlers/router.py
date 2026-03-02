@@ -13,6 +13,7 @@ from bot_constants import (
     CONVERSATION_STARTER_COMMANDS,
     MODULE_DISPLAY_NAMES,
     CONV_MODULE_SCHEDULE,
+    CONV_MODULE_TODO,
 )
 
 logger = logging.getLogger(__name__)
@@ -164,15 +165,22 @@ def _route_command(user_id, chat_id, text):
         from handlers.schedule import handle_cancel_schedule
         handle_cancel_schedule(user_id, chat_id, args)
 
-    # ----- Todo (placeholders) -----
+    # ----- Todo -----
     elif cmd == "/add_todo":
-        _placeholder(chat_id, cmd)
+        from handlers.todo import handle_add_todo
+        handle_add_todo(user_id, chat_id)
+
     elif cmd == "/todos":
-        _placeholder(chat_id, cmd)
+        from handlers.todo import handle_todos
+        handle_todos(user_id, chat_id)
+
     elif cmd == "/done":
-        _placeholder(chat_id, cmd)
+        from handlers.todo import handle_done
+        handle_done(user_id, chat_id, args)
+
     elif cmd == "/del_todo":
-        _placeholder(chat_id, cmd)
+        from handlers.todo import handle_del_todo
+        handle_del_todo(user_id, chat_id, args)
 
     # ----- Work (placeholders) -----
     elif cmd == "/add_work":
@@ -294,9 +302,9 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
         from handlers.schedule import handle_step
         handle_step(user_id, chat_id, text, step, data)
 
-    # elif module == CONV_MODULE_TODO:
-    #     from handlers.todo import handle_step
-    #     handle_step(user_id, chat_id, text, step, data)
+    elif module == CONV_MODULE_TODO:
+        from handlers.todo import handle_step
+        handle_step(user_id, chat_id, text, step, data)
 
     # elif module == CONV_MODULE_WORK:
     #     from handlers.work import handle_step
@@ -338,9 +346,9 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
         from handlers.schedule import handle_callback
         handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
-    # elif module == CONV_MODULE_TODO:
-    #     from handlers.todo import handle_callback
-    #     handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+    elif module == CONV_MODULE_TODO:
+        from handlers.todo import handle_callback
+        handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
     # elif module == CONV_MODULE_WORK:
     #     from handlers.work import handle_callback
