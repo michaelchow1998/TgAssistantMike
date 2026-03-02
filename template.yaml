@@ -99,11 +99,19 @@ Resources:
         - SSMParameterReadPolicy:
             ParameterName: "bot/*"
 
+  # CodeUri: reminder_handler/
+  # Structure:
+  #   lambda_function.py          → Handler entry
+  #   reminders/                  → package
+  #     __init__.py
+  #     db_queries.py
+  #     notifier.py
+  #     reminder_service.py
   ReminderHandlerFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: bot-reminder-handler
-      Description: Handles scheduled reminders
+      Description: Handles scheduled reminders (morning/subscription/payment/evening)
       CodeUri: reminder_handler/
       Handler: lambda_function.lambda_handler
       Timeout: 60
