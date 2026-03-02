@@ -142,8 +142,8 @@ def _route_command(user_id, chat_id, text):
         handle_start(chat_id)
 
     elif cmd == "/help":
-        from handlers.start import handle_help
-        handle_help(chat_id)
+        from handlers.help_module import handle_help
+        handle_help(chat_id, args)
 
     # ----- Schedule -----
     elif cmd == "/add_schedule":
@@ -403,6 +403,25 @@ def _handle_standalone_callback(user_id, chat_id, message_id, data):
         "callback_data": data,
     }))
 
+    # ----- Help module callbacks -----
+    if data.startswith("help_"):
+        from handlers.help_module import (
+            handle_help_callback,
+            handle_help_back_callback,
+        )
+        if data == "help_back":
+            handle_help_back_callback(user_id, chat_id, message_id)
+            return
+        if data == "help_back_new":
+            # Send a fresh help menu (from /start or after /help <module>)
+            from handlers.help_module import handle_help
+            handle_help(chat_id)
+            return
+        handled = handle_help_callback(user_id, chat_id, message_id, data)
+        if handled:
+            return
+
+    # ----- Subscription cancel callbacks -----
     if data.startswith("cancelsub_"):
         from handlers.subscription import handle_standalone_callback
         handled = handle_standalone_callback(user_id, chat_id, message_id, data)
