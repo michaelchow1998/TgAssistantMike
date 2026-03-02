@@ -1,6 +1,6 @@
 # webhook_handler/handlers/router.py
 # ============================================================
-# 訊息/Callback/對話 路由器
+# 訊息 / Callback / 對話 路由器
 # ============================================================
 
 import json
@@ -12,6 +12,7 @@ from bot_db import get_conversation, delete_conversation
 from bot_constants import (
     CONVERSATION_STARTER_COMMANDS,
     MODULE_DISPLAY_NAMES,
+    CONV_MODULE_SCHEDULE,
 )
 
 logger = logging.getLogger(__name__)
@@ -146,15 +147,22 @@ def _route_command(user_id, chat_id, text):
         from handlers.start import handle_help
         handle_help(chat_id)
 
-    # ----- Schedule (placeholders) -----
+    # ----- Schedule -----
     elif cmd == "/add_schedule":
-        _placeholder(chat_id, cmd)
+        from handlers.schedule import handle_add_schedule
+        handle_add_schedule(user_id, chat_id)
+
     elif cmd == "/today":
-        _placeholder(chat_id, cmd)
+        from handlers.schedule import handle_today
+        handle_today(user_id, chat_id)
+
     elif cmd == "/week":
-        _placeholder(chat_id, cmd)
+        from handlers.schedule import handle_week
+        handle_week(user_id, chat_id)
+
     elif cmd == "/cancel_schedule":
-        _placeholder(chat_id, cmd)
+        from handlers.schedule import handle_cancel_schedule
+        handle_cancel_schedule(user_id, chat_id, args)
 
     # ----- Todo (placeholders) -----
     elif cmd == "/add_todo":
@@ -267,7 +275,7 @@ def _handle_callback_query(callback_query):
 
 
 # ================================================================
-#  Conversation step dispatchers (to be filled per-module)
+#  Conversation step dispatcher
 # ================================================================
 
 def _handle_conversation_step(user_id, chat_id, text, conv):
@@ -282,14 +290,36 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
         "step": step,
     }))
 
-    # Will be replaced with real dispatchers:
-    # if module == "schedule":
-    #     from handlers.schedule import handle_step
+    if module == CONV_MODULE_SCHEDULE:
+        from handlers.schedule import handle_step
+        handle_step(user_id, chat_id, text, step, data)
+
+    # elif module == CONV_MODULE_TODO:
+    #     from handlers.todo import handle_step
     #     handle_step(user_id, chat_id, text, step, data)
-    # elif module == "todo": ...
 
-    send_message(chat_id, f"🚧 對話模組 `{module}` 步驟 `{step}` 尚未實作。")
+    # elif module == CONV_MODULE_WORK:
+    #     from handlers.work import handle_step
+    #     handle_step(user_id, chat_id, text, step, data)
 
+    # elif module == CONV_MODULE_FINANCE:
+    #     from handlers.finance import handle_step
+    #     handle_step(user_id, chat_id, text, step, data)
+
+    # elif module == CONV_MODULE_SUBSCRIPTION:
+    #     from handlers.subscription import handle_step
+    #     handle_step(user_id, chat_id, text, step, data)
+
+    else:
+        send_message(
+            chat_id,
+            f"🚧 對話模組 `{module}` 尚未實作，請輸入 /cancel 取消。",
+        )
+
+
+# ================================================================
+#  Conversation callback dispatcher
+# ================================================================
 
 def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
     """Dispatch callback to the active conversation's module handler."""
@@ -304,14 +334,37 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
         "callback_data": data,
     }))
 
-    # Placeholder — same pattern as above
-    pass
+    if module == CONV_MODULE_SCHEDULE:
+        from handlers.schedule import handle_callback
+        handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
+    # elif module == CONV_MODULE_TODO:
+    #     from handlers.todo import handle_callback
+    #     handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+
+    # elif module == CONV_MODULE_WORK:
+    #     from handlers.work import handle_callback
+    #     handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+
+    # elif module == CONV_MODULE_FINANCE:
+    #     from handlers.finance import handle_callback
+    #     handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+
+    # elif module == CONV_MODULE_SUBSCRIPTION:
+    #     from handlers.subscription import handle_callback
+    #     handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+
+    else:
+        logger.warning(f"No callback handler for module: {module}")
+
+
+# ================================================================
+#  Standalone callback handler
+# ================================================================
 
 def _handle_standalone_callback(user_id, chat_id, message_id, data):
     """Handle callbacks outside any active conversation."""
-    # e.g. cancelsub_confirm_3, cancelsub_keep_3
-    # Placeholder for future modules
+    # Future: cancelsub_confirm_{id}, cancelsub_keep_{id}, etc.
     logger.info(json.dumps({
         "event_type": "standalone_callback",
         "callback_data": data,
