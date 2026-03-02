@@ -154,7 +154,7 @@ sam logs --stack-name secretary-bot \
     --start-time "10min ago"
 
 # Check API Gateway is responding (expected: 403 = Lambda is alive, secret path missing)
-curl -X POST "https://tddc8n7h54.execute-api.ap-northeast-1.amazonaws.com/prod/webhook/" \
+curl -X POST "https://<id>.execute-api.ap-northeast-1.amazonaws.com/prod/webhook/" \
     -H "Content-Type: application/json" \
     -d "{}" \
     -w "\n%{http_code}\n"

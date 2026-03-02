@@ -103,7 +103,10 @@ TELEGRAM_BOT_TOKEN=7654321098:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 WEBHOOK_SECRET=<the value you set for /bot/webhook_secret>
 WEBHOOK_PATH=<the value you set for /bot/webhook_path>
 OWNER_ID=123456789
+WEBHOOK_BASE_URL=https://<id>.execute-api.<region>.amazonaws.com/prod/webhook/
 ```
+
+> You will get the `WEBHOOK_BASE_URL` value from the `sam deploy` output in Step 5.
 
 ---
 
@@ -119,6 +122,14 @@ pip install -r dependencies/requirements.txt -t dependencies/python/ \
     --only-binary=:all: \
     --upgrade
 ```
+
+### Set up SAM deploy config
+
+```bash
+cp samconfig.toml.example samconfig.toml
+```
+
+Edit `samconfig.toml` and set your preferred region and (optionally) an alert email.
 
 ### Deploy to AWS
 

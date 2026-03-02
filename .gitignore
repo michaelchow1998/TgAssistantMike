@@ -22,6 +22,12 @@ dependencies/python/
 *.iml
 .vscode/
 
+# ===== Claude Code (local settings only) =====
+.claude/settings.local.json
+
+# ===== SAM local deploy config (personal, generated per-deployer) =====
+samconfig.toml
+
 # ===== OS =====
 .DS_Store
 Thumbs.db

@@ -22,7 +22,7 @@ EventBridge (cron) → reminder_handler (Lambda) → Telegram API (httpx)
 |----------------------|--------------------------------------------------------------------------------|
 | Stack Name           | `secretary-bot`                                                                |
 | Region               | `ap-northeast-1`                                                               |
-| API Gateway          | `https://tddc8n7h54.execute-api.ap-northeast-1.amazonaws.com/prod/webhook/`   |
+| API Gateway          | `https://<id>.execute-api.ap-northeast-1.amazonaws.com/prod/webhook/`         |
 | Webhook Lambda       | `bot-webhook-handler`                                                          |
 | Reminder Lambda      | `bot-reminder-handler`                                                         |
 | Main Table           | `BotMainTable`                                                                 |
