@@ -25,3 +25,6 @@ dependencies/python/
 # ===== OS =====
 .DS_Store
 Thumbs.db
+
+# ===== Worktrees =====
+.worktrees/
