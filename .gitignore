@@ -1,12 +1,26 @@
-# Ignore environment files
+# ===== AWS SAM =====
+.aws-sam/
+
+# ===== Python =====
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# ===== Dependencies Layer (build artifact) =====
+dependencies/python/
+
+# ===== Secrets =====
 .env
 
-# Python cache
-__pycache__/
-*.pyc
+# ===== IDE =====
 .idea/
+*.iml
+.vscode/
 
-# data
-static/data/
-static/logs/
-static/results/
+# ===== OS =====
+.DS_Store
+Thumbs.db
