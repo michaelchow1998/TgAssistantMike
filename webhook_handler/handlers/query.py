@@ -10,6 +10,8 @@ from datetime import timedelta
 
 from boto3.dynamodb.conditions import Key, Attr
 
+from handlers.schedule import _get_schedules_on, _get_type_badge
+
 from bot_constants import (
     ENTITY_SCH,
     ENTITY_TODO,
@@ -70,26 +72,38 @@ def handle_summary(user_id, chat_id):
         f"📋 *{today}（{weekday}）每日摘要*\n",
     ]
 
-    # ----- Today's schedule -----
-    schedules = query_gsi1(
-        gsi1pk=f"USER#{owner_id}#SCH",
-        sk_condition=Key("GSI1SK").begins_with(f"{today}#"),
-        filter_expr=Attr("status").eq(SCH_STATUS_ACTIVE),
-    )
+    # ----- 3-day schedule -----
+    day_labels = ["今天", "明天", "後天"]
+    total_sch = 0
+    sch_sections = []
 
-    lines.append(f"📅 *今日行程*（{len(schedules)} 筆）")
-    if schedules:
-        for item in schedules:
-            time_str = item.get("time", "")
-            time_display = time_str if time_str else "全天"
-            cat_info = SCH_CATEGORIES.get(item.get("category", "other"), {})
-            emoji = cat_info.get("emoji", "📦")
-            lines.append(
-                f"  {emoji} {escape_markdown(item.get('title', ''))}"
-                f"  \\[{time_display}\\]"
-            )
-    else:
-        lines.append("  今天沒有行程 🎉")
+    for i in range(3):
+        day_date = today_date + timedelta(days=i)
+        day_str = day_date.strftime("%Y-%m-%d")
+        day_items = _get_schedules_on(owner_id, day_str)
+        total_sch += len(day_items)
+
+        label = day_labels[i]
+        wd = get_weekday_name(day_str)
+        sec = [f"📆 *{label} {day_str}（{wd}）*"]
+
+        if day_items:
+            for item in sorted(day_items, key=lambda x: x.get("time", "99:99")):
+                time_str = item.get("time", "")
+                time_display = time_str if time_str else "全天"
+                cat_info = SCH_CATEGORIES.get(item.get("category", "other"), {})
+                emoji = cat_info.get("emoji", "📦")
+                badge = _get_type_badge(item)
+                sec.append(
+                    f"  {emoji} {escape_markdown(item.get('title', ''))}"
+                    f"  \\[{time_display}\\]{badge}"
+                )
+        else:
+            sec.append("  無行程")
+        sch_sections.append("\n".join(sec))
+
+    lines.append(f"📅 *近 3 天行程*（共 {total_sch} 筆）")
+    lines.extend(sch_sections)
     lines.append("")
 
     # ----- Pending todos -----

@@ -46,7 +46,7 @@ All bot messages are in Traditional Chinese.
 
 ## Quick Start
 
-See **[onboard.md](onboard.md)** for the full step-by-step deployment guide.
+See **[onboard.md](doc/onboard.md)** for the full step-by-step deployment guide.
 
 **Summary:**
 
