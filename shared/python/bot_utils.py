@@ -283,3 +283,27 @@ def escape_markdown(text):
     for ch in ("_", "*", "`", "["):
         text = text.replace(ch, f"\\{ch}")
     return text
+
+
+# ===== Repeat Schedule Helpers =====
+
+def is_repeat_occurrence(item, date_str):
+    """Return True if a repeat schedule has an occurrence on date_str."""
+    start = datetime.strptime(item["date"], "%Y-%m-%d").date()
+    target = datetime.strptime(date_str, "%Y-%m-%d").date()
+    if target < start:
+        return False
+    end_raw = item.get("repeat_end_date", "")
+    if end_raw and target > datetime.strptime(end_raw, "%Y-%m-%d").date():
+        return False
+    rtype = item.get("repeat_type")
+    if rtype == "daily":
+        return True
+    if rtype == "weekly":
+        return target.weekday() in (item.get("repeat_days") or [])
+    if rtype == "monthly":
+        return target.day == start.day
+    if rtype == "custom":
+        interval = int(item.get("repeat_interval", 1))
+        return (target - start).days % interval == 0
+    return False

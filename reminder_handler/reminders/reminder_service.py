@@ -23,6 +23,7 @@ import pytz                                        # dependencies layer
 
 from .db_queries import (
     get_schedules_for_date,
+    get_schedules_effective_on,
     get_pending_todos,
     get_pending_payments,
     get_active_subscriptions,
@@ -66,7 +67,7 @@ class ReminderService:
 
     def _fetch_all(self):
         return {
-            "schedules": get_schedules_for_date(self.today_s),
+            "schedules": get_schedules_effective_on(self.today_s),
             "todos":     get_pending_todos(),
             "work":      get_active_work(),
             "payments":  get_pending_payments(),
@@ -223,7 +224,7 @@ class ReminderService:
         ]
 
         # ── 明日行程 ──
-        scheds = get_schedules_for_date(tmr_s)
+        scheds = get_schedules_effective_on(tmr_s)
         if scheds:
             scheds.sort(key=lambda x: x.get("time", "99:99"))
             lines = [f"📅 *明日行程（{len(scheds)}）*"]

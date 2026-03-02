@@ -15,6 +15,19 @@ ENTITY_COUNTER = "COUNTER"
 SCH_STATUS_ACTIVE = "active"
 SCH_STATUS_CANCELLED = "cancelled"
 
+# Schedule types
+SCH_TYPE_SINGLE = "single"
+SCH_TYPE_PERIOD = "period"
+SCH_TYPE_REPEAT = "repeat"
+
+# Repeat patterns
+SCH_REPEAT_DAILY = "daily"
+SCH_REPEAT_WEEKLY = "weekly"
+SCH_REPEAT_MONTHLY = "monthly"
+SCH_REPEAT_CUSTOM = "custom"   # every N days
+
+SCH_REPEAT_WEEKDAY_NAMES = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
+
 SCH_CATEGORIES = {
     "work":     {"display": "工作", "emoji": "💼"},
     "personal": {"display": "個人", "emoji": "👤"},

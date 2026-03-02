@@ -18,9 +18,13 @@
 # ============================================================
 
 import logging
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 
 from db import main_table          # ← shared layer
+from bot_db import query_gsi1 as _db_query_gsi1
+from bot_config import get_owner_id
+from bot_constants import SCH_STATUS_ACTIVE, SCH_TYPE_PERIOD, SCH_TYPE_REPEAT
+from bot_utils import is_repeat_occurrence
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +74,64 @@ def get_schedules_range(start, end):
         "SCHEDULE",
         Key("GSI1SK").between(start, end + "\uffff"),
     )
+
+
+def _query_gsi1_schedules(sk_cond, extra_filter=None):
+    """Query SCH items via GSI_Type_Date with owner + active status filter."""
+    owner_id = get_owner_id()
+    gsi1pk = f"USER#{owner_id}#SCH"
+    filter_expr = Attr("status").eq(SCH_STATUS_ACTIVE)
+    if extra_filter is not None:
+        filter_expr = filter_expr & extra_filter
+    return _db_query_gsi1(
+        gsi1pk=gsi1pk,
+        sk_condition=sk_cond,
+        filter_expr=filter_expr,
+    )
+
+
+def get_schedules_effective_on(date_str):
+    """All active schedules effective on date_str: single + period + repeat."""
+    # 1. Items starting on this date (any type)
+    same_day = _query_gsi1_schedules(
+        sk_cond=Key("GSI1SK").begins_with(f"{date_str}#"),
+    )
+
+    # 2. Period items that started before date_str but end on/after date_str
+    period_items = _query_gsi1_schedules(
+        sk_cond=Key("GSI1SK").between("0000-01-01#", f"{date_str}#"),
+        extra_filter=(
+            Attr("schedule_type").eq(SCH_TYPE_PERIOD)
+            & Attr("end_date").gte(date_str)
+        ),
+    )
+
+    # 3. Repeat items that started before date_str — filter by occurrence
+    repeat_candidates = _query_gsi1_schedules(
+        sk_cond=Key("GSI1SK").between("0000-01-01#", f"{date_str}#"),
+        extra_filter=Attr("schedule_type").eq(SCH_TYPE_REPEAT),
+    )
+    earlier_repeats = [r for r in repeat_candidates if is_repeat_occurrence(r, date_str)]
+
+    # Merge, dedup by SK; apply occurrence check to repeat items in same_day
+    seen, results = set(), []
+    for item in same_day:
+        sk = item["SK"]
+        if sk in seen:
+            continue
+        seen.add(sk)
+        if (item.get("schedule_type") == SCH_TYPE_REPEAT
+                and not is_repeat_occurrence(item, date_str)):
+            continue
+        results.append(item)
+
+    for item in period_items + earlier_repeats:
+        sk = item["SK"]
+        if sk not in seen:
+            seen.add(sk)
+            results.append(item)
+
+    return results
 
 
 # ================================================================
