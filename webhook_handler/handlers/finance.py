@@ -819,6 +819,22 @@ def _edit_fin_handle_callback(user_id, chat_id, message_id, callback_data, step,
         if item:
             _ask_edit_fin_field(chat_id, item)
 
+    elif step == "edit_date":
+        if callback_data == "fin_skip_date":
+            # Clear the date (remove due date for payment)
+            update_item(
+                pk=data["pk"],
+                sk=data["sk"],
+                update_expr="SET #d = :d",
+                expr_values={":d": ""},
+                expr_names={"#d": "date"},
+            )
+            send_message(chat_id, "✅ 日期已清除（無到期日）。")
+            update_conversation(user_id, "choose_field", data)
+            item = _reload_fin_item(data)
+            if item:
+                _ask_edit_fin_field(chat_id, item)
+
 
 def _edit_fin_handle_step(user_id, chat_id, text, step, data):
     if step == "edit_title":
