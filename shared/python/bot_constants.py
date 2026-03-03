@@ -10,6 +10,7 @@ ENTITY_WORK = "WORK"
 ENTITY_FIN = "FIN"
 ENTITY_SUB = "SUB"
 ENTITY_COUNTER = "COUNTER"
+ENTITY_HEALTH = "HEALTH"
 
 # ===== Schedule =====
 SCH_STATUS_ACTIVE = "active"
@@ -116,6 +117,21 @@ CONV_MODULE_SUBSCRIPTION = "subscription"
 CONV_MODULE_RESUME_SUB = "resume_sub"
 CONV_MODULE_EDIT_SUB = "edit_sub"
 CONV_MODULE_EDIT_FIN = "edit_fin"
+CONV_MODULE_HEALTH = "health"          # add_meal flow
+CONV_MODULE_SET_HEALTH = "set_health"  # set_health flow
+
+# ===== Health =====
+HEALTH_MEAL_BREAKFAST = "breakfast"
+HEALTH_MEAL_LUNCH     = "lunch"
+HEALTH_MEAL_DINNER    = "dinner"
+HEALTH_MEAL_OTHER     = "other"
+
+HEALTH_MEAL_DISPLAY = {
+    "breakfast": {"label": "早餐", "emoji": "🌅"},
+    "lunch":     {"label": "午餐", "emoji": "☀️"},
+    "dinner":    {"label": "晚餐", "emoji": "🌙"},
+    "other":     {"label": "其他", "emoji": "🍎"},
+}
 
 # ===== Conversation =====
 CONV_TTL_SECONDS = 30 * 60  # 30 minutes
@@ -139,6 +155,8 @@ MODULE_DISPLAY_NAMES = {
     CONV_MODULE_RESUME_SUB: "恢復訂閱",
     CONV_MODULE_EDIT_SUB: "編輯訂閱",
     CONV_MODULE_EDIT_FIN: "編輯財務",
+    CONV_MODULE_HEALTH: "記錄餐點",
+    CONV_MODULE_SET_HEALTH: "設定健康目標",
 }
 
 # ===== Commands that start conversations =====
@@ -146,4 +164,5 @@ CONVERSATION_STARTER_COMMANDS = {
     "/add_schedule", "/add_todo", "/add_work",
     "/add_payment", "/add_income", "/add_expense",
     "/add_sub", "/resume_sub", "/edit_sub", "/edit_fin",
+    "/set_health", "/add_meal",
 }

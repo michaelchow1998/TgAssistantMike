@@ -20,6 +20,8 @@ from bot_constants import (
     CONV_MODULE_RESUME_SUB,
     CONV_MODULE_EDIT_SUB,
     CONV_MODULE_EDIT_FIN,
+    CONV_MODULE_HEALTH,
+    CONV_MODULE_SET_HEALTH,
 )
 
 logger = logging.getLogger(__name__)
@@ -267,6 +269,19 @@ def _route_command(user_id, chat_id, text):
         from handlers.subscription import handle_sub_cost
         handle_sub_cost(user_id, chat_id)
 
+    # ----- Health -----
+    elif cmd == "/set_health":
+        from handlers.health import handle_set_health
+        handle_set_health(user_id, chat_id)
+
+    elif cmd == "/add_meal":
+        from handlers.health import handle_add_meal
+        handle_add_meal(user_id, chat_id)
+
+    elif cmd == "/health":
+        from handlers.health import handle_health
+        handle_health(user_id, chat_id, args)
+
     # ----- Query -----
     elif cmd == "/summary":
         from handlers.query import handle_summary
@@ -359,6 +374,10 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
         from handlers.finance import handle_step as fin_handle_step
         fin_handle_step(user_id, chat_id, text, step, data)
 
+    elif module in (CONV_MODULE_HEALTH, CONV_MODULE_SET_HEALTH):
+        from handlers.health import handle_step as health_handle_step
+        health_handle_step(user_id, chat_id, text, step, data)
+
     else:
         send_message(
             chat_id,
@@ -405,6 +424,10 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
     elif module == CONV_MODULE_EDIT_FIN:
         from handlers.finance import handle_callback as fin_handle_callback
         fin_handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+
+    elif module in (CONV_MODULE_HEALTH, CONV_MODULE_SET_HEALTH):
+        from handlers.health import handle_callback as health_handle_callback
+        health_handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
     else:
         logger.warning(f"No callback handler for module: {module}")

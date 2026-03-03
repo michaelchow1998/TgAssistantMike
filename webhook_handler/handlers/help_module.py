@@ -62,6 +62,11 @@ _HELP_MODULES = {
             "/edit\\_sub `ID` — 編輯訂閱\n"
             "/sub\\_cost — 訂閱費用統計\n\n"
 
+            "*🥗 健康管理*\n"
+            "/set\\_health — 設定 TDEE 與赤字目標\n"
+            "/add\\_meal — 記錄餐點卡路里\n"
+            "/health `[YYYY-MM]` — 今日飲食記錄或月報\n\n"
+
             "*📊 綜合查詢*\n"
             "/summary — 每日摘要\n"
             "/search `關鍵字` — 全域搜尋\n"
@@ -248,6 +253,37 @@ _HELP_MODULES = {
         ),
     },
 
+    "health": {
+        "title": "🥗 健康管理",
+        "content": (
+            "🥗 *健康管理 — 使用說明*\n\n"
+
+            "*設定健康目標*\n"
+            "指令：/set\\_health\n"
+            "Bot 會依序詢問：\n"
+            "1️⃣ TDEE — 每日總消耗熱量（整數，例如 2200）\n"
+            "2️⃣ 目標赤字 — 每日赤字目標（整數，例如 500；無赤字輸入 0）\n"
+            "3️⃣ 確認 — 確認後儲存\n"
+            "每日目標攝取 = TDEE − 赤字\n\n"
+
+            "*記錄餐點*\n"
+            "指令：/add\\_meal\n"
+            "1️⃣ 選擇餐點：🌅 早餐 / ☀️ 午餐 / 🌙 晚餐 / 🍎 其他\n"
+            "2️⃣ 輸入卡路里（1–9999 整數）\n"
+            "每個時段每天只有一筆——重複記錄同一時段會覆蓋前一筆\n\n"
+
+            "*查看記錄*\n"
+            "• /health — 今日飲食記錄（各餐明細 + 目標進度）\n"
+            "• `/health 2026-03` — 指定月份健康月報\n"
+            "  含：有記錄天數、平均日攝取、達標/超標天數、月合計\n\n"
+
+            "*💡 小提示*\n"
+            "• 未設定目標時仍可記錄餐點，但不會顯示進度\n"
+            "• 超出目標會顯示 ⚠️，達標顯示 ✅\n"
+            "• 月報按整月天數計算目標合計"
+        ),
+    },
+
     "query": {
         "title": "📊 綜合查詢",
         "content": (
@@ -342,6 +378,7 @@ _HELP_MENU_ROWS = [
         {"text": "📊 綜合查詢", "callback_data": "help_query"},
     ],
     [
+        {"text": "🥗 健康管理", "callback_data": "help_health"},
         {"text": "💡 使用技巧", "callback_data": "help_tips"},
     ],
 ]
@@ -361,6 +398,8 @@ _HELP_ALIASES = {
     "訂閱":         "subscription",
     "query":        "query",
     "查詢":         "query",
+    "health":       "health",
+    "健康":         "health",
     "tips":         "tips",
     "技巧":         "tips",
     "overview":     "overview",
@@ -390,7 +429,7 @@ def handle_help(chat_id, args=""):
             send_message(
                 chat_id,
                 f"❌ 未知的模組：`{args}`\n\n"
-                "可用模組：`schedule`、`todo`、`work`、`finance`、`subscription`、`query`、`tips`",
+                "可用模組：`schedule`、`todo`、`work`、`finance`、`subscription`、`health`、`query`、`tips`",
             )
             return
 
