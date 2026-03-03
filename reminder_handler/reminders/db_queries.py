@@ -20,7 +20,6 @@
 import logging
 from boto3.dynamodb.conditions import Key, Attr
 
-from db import main_table          # ← shared layer
 from bot_db import query_gsi1 as _db_query_gsi1
 from bot_config import get_owner_id
 from bot_constants import SCH_STATUS_ACTIVE, SCH_TYPE_PERIOD, SCH_TYPE_REPEAT
@@ -28,35 +27,14 @@ from bot_utils import is_repeat_occurrence
 
 logger = logging.getLogger(__name__)
 
-GSI_NAME = "GSI_Type_Date"
-
 
 # ================================================================
-#  Generic GSI1 query（自動分頁）
+#  Generic GSI1 query
 # ================================================================
 
 def _query_gsi1(pk_val, sk_cond=None):
-    """Query GSI_Type_Date with automatic pagination."""
-    kce = Key("GSI1PK").eq(pk_val)
-    if sk_cond is not None:
-        kce = kce & sk_cond
-
-    kwargs = {"IndexName": GSI_NAME, "KeyConditionExpression": kce}
-    items = []
-
-    try:
-        while True:
-            resp = main_table.query(**kwargs)
-            items.extend(resp.get("Items", []))
-            lek = resp.get("LastEvaluatedKey")
-            if not lek:
-                break
-            kwargs["ExclusiveStartKey"] = lek
-    except Exception as e:
-        logger.error(f"GSI1 query error (PK={pk_val}): {e}")
-
-    logger.debug(f"GSI1 PK={pk_val}: {len(items)} items")
-    return items
+    """Query GSI_Type_Date."""
+    return _db_query_gsi1(gsi1pk=pk_val, sk_condition=sk_cond)
 
 
 # ================================================================
