@@ -195,10 +195,13 @@ _HELP_MODULES = {
             "*管理款項*\n"
             "• /payments — 查看所有待付款項\n"
             "• `/paid 3` — 標記 ID 3 為已付\n"
+            "• `/del_fin 3` — 刪除 ID 3 的財務記錄\n"
+            "• `/edit_fin 3` — 編輯 ID 3 的財務記錄\n"
             "• 逾期款項會標記 ⚠️\n\n"
 
             "*月度統計*\n"
-            "• /finance\\_summary — 本月收支統計\n"
+            "• `/finance_summary` — 本月收支統計\n"
+            "• `/finance_summary 2026-01` — 查看指定月份統計\n"
             "• 含收入、支出、已付款、待付款\n"
             "• 自動計算淨額和支出分類明細\n\n"
 
