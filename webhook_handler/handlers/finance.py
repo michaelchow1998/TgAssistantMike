@@ -843,11 +843,16 @@ def _edit_fin_handle_step(user_id, chat_id, text, step, data):
         if fin_type == FIN_TYPE_PAYMENT and is_past_date(date_str):
             send_message(chat_id, "❌ 付款到期日不能是過去的日期，請重新輸入。")
             return
+        ulid_part = data["sk"].split("#", 1)[1]
         update_item(
             pk=data["pk"],
             sk=data["sk"],
-            update_expr="SET #d = :d",
-            expr_values={":d": date_str},
+            update_expr="SET #d = :d, GSI1SK = :g1sk, GSI2SK = :g2sk",
+            expr_values={
+                ":d": date_str,
+                ":g1sk": f"{date_str}#{ulid_part}",
+                ":g2sk": f"{date_str}#{ulid_part}",
+            },
             expr_names={"#d": "date"},
         )
         send_message(chat_id, f"✅ 日期已更新為：{format_date_full(date_str)}")
