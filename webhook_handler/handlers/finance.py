@@ -514,28 +514,39 @@ def handle_paid(user_id, chat_id, args):
 #  /finance_summary — 月度統計
 # ================================================================
 
-def handle_finance_summary(user_id, chat_id):
+def handle_finance_summary(user_id, chat_id, args=""):
+    import re
     owner_id = get_owner_id()
     today_date = get_today_date()
-    month_start = today_date.replace(day=1).strftime("%Y-%m-%d")
-    month_label = today_date.strftime("%Y年%m月")
+
+    # Parse optional month argument (YYYY-MM)
+    if args and args.strip():
+        m = re.match(r"^(\d{4}-(?:0[1-9]|1[0-2]))$", args.strip())
+        if not m:
+            send_message(chat_id, "❌ 月份格式不正確，請使用 `YYYY-MM`，例如：`/finance_summary 2026-02`")
+            return
+        month_prefix = m.group(1)
+    else:
+        month_prefix = today_date.strftime("%Y-%m")
+
+    month_label = month_prefix[:4] + "年" + month_prefix[5:7] + "月"
 
     # --- Fetch income ---
     income_items = query_gsi1(
         gsi1pk=f"USER#{owner_id}#FIN#{FIN_TYPE_INCOME}",
-        sk_condition=Key("GSI1SK").begins_with(month_start[:7]),
+        sk_condition=Key("GSI1SK").begins_with(month_prefix),
     )
 
     # --- Fetch expenses ---
     expense_items = query_gsi1(
         gsi1pk=f"USER#{owner_id}#FIN#{FIN_TYPE_EXPENSE}",
-        sk_condition=Key("GSI1SK").begins_with(month_start[:7]),
+        sk_condition=Key("GSI1SK").begins_with(month_prefix),
     )
 
     # --- Fetch payments (paid this month) ---
     payment_items = query_gsi1(
         gsi1pk=f"USER#{owner_id}#FIN#{FIN_TYPE_PAYMENT}",
-        sk_condition=Key("GSI1SK").begins_with(month_start[:7]),
+        sk_condition=Key("GSI1SK").begins_with(month_prefix),
     )
     paid_payments = [p for p in payment_items if p.get("status") == FIN_STATUS_PAID]
     pending_payments = [p for p in payment_items if p.get("status") == FIN_STATUS_PENDING]
@@ -586,7 +597,10 @@ def handle_finance_summary(user_id, chat_id):
     if not income_items and not expense_items and not payment_items:
         lines = [
             f"💰 *{month_label} 財務摘要*\n",
-            "本月尚無任何財務紀錄。",
+            f"{month_label}尚無任何財務紀錄。",
+            "",
+            "提示：若記錄在其他月份，可指定月份，例如：",
+            "`/finance_summary 2026-02`",
         ]
 
     send_message(chat_id, "\n".join(lines))

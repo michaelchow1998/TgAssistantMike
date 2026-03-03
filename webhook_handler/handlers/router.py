@@ -220,7 +220,7 @@ def _route_command(user_id, chat_id, text):
 
     elif cmd == "/finance_summary":
         from handlers.finance import handle_finance_summary
-        handle_finance_summary(user_id, chat_id)
+        handle_finance_summary(user_id, chat_id, args)
 
     elif cmd == "/del_fin":
         from handlers.finance import handle_del_fin
