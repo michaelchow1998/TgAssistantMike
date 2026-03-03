@@ -19,6 +19,7 @@ from bot_constants import (
     CONV_MODULE_SUBSCRIPTION,
     CONV_MODULE_RESUME_SUB,
     CONV_MODULE_EDIT_SUB,
+    CONV_MODULE_EDIT_FIN,
 )
 
 logger = logging.getLogger(__name__)
@@ -221,6 +222,14 @@ def _route_command(user_id, chat_id, text):
         from handlers.finance import handle_finance_summary
         handle_finance_summary(user_id, chat_id)
 
+    elif cmd == "/del_fin":
+        from handlers.finance import handle_del_fin
+        handle_del_fin(user_id, chat_id, args)
+
+    elif cmd == "/edit_fin":
+        from handlers.finance import handle_edit_fin
+        handle_edit_fin(user_id, chat_id, args)
+
     # ----- Subscription -----
     elif cmd == "/add_sub":
         from handlers.subscription import handle_add_sub
@@ -346,6 +355,10 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
         from handlers.subscription import handle_step as sub_handle_step
         sub_handle_step(user_id, chat_id, text, step, data)
 
+    elif module == CONV_MODULE_EDIT_FIN:
+        from handlers.finance import handle_step as fin_handle_step
+        fin_handle_step(user_id, chat_id, text, step, data)
+
     else:
         send_message(
             chat_id,
@@ -389,6 +402,10 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
         from handlers.subscription import handle_callback as sub_handle_callback
         sub_handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
+    elif module == CONV_MODULE_EDIT_FIN:
+        from handlers.finance import handle_callback as fin_handle_callback
+        fin_handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+
     else:
         logger.warning(f"No callback handler for module: {module}")
 
@@ -427,3 +444,9 @@ def _handle_standalone_callback(user_id, chat_id, message_id, data):
         handled = handle_standalone_callback(user_id, chat_id, message_id, data)
         if handled:
             return
+
+    # ----- Finance delete callbacks -----
+    if data.startswith("delfin_"):
+        from handlers.finance import handle_del_fin_callback
+        handle_del_fin_callback(user_id, chat_id, message_id, data)
+        return

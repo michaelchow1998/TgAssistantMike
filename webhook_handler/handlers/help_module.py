@@ -47,7 +47,9 @@ _HELP_MODULES = {
             "/add\\_expense — 新增支出\n"
             "/payments — 查看待付款項\n"
             "/paid `ID` — 標記已付\n"
-            "/finance\\_summary — 月度財務統計\n\n"
+            "/del\\_fin `ID` — 刪除財務記錄\n"
+            "/edit\\_fin `ID` — 編輯財務記錄\n"
+            "/finance\\_summary `[YYYY-MM]` — 月度財務統計\n\n"
 
             "*📦 訂閱管理*\n"
             "/add\\_sub — 新增訂閱\n"

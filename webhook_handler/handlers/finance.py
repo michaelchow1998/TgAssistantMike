@@ -21,10 +21,12 @@ from bot_constants import (
     FIN_STATUS_CANCELLED,
     FIN_CATEGORIES,
     CONV_MODULE_FINANCE,
+    CONV_MODULE_EDIT_FIN,
 )
 from bot_config import get_owner_id
 from bot_telegram import (
     send_message,
+    edit_message_text,
     build_inline_keyboard,
     build_skip_keyboard,
     build_confirm_keyboard,
@@ -97,6 +99,10 @@ def _start_conversation(user_id, chat_id, fin_type):
 # ----------------------------------------------------------------
 
 def handle_step(user_id, chat_id, text, step, data):
+    if data.get("_module") == CONV_MODULE_EDIT_FIN:
+        _edit_fin_handle_step(user_id, chat_id, text, step, data)
+        return
+
     if step == "title":
         _step_title(user_id, chat_id, text, data)
     elif step == "amount":
@@ -119,6 +125,9 @@ def handle_step(user_id, chat_id, text, step, data):
 # ----------------------------------------------------------------
 
 def handle_callback(user_id, chat_id, message_id, callback_data, step, data):
+    if data.get("_module") == CONV_MODULE_EDIT_FIN:
+        _edit_fin_handle_callback(user_id, chat_id, message_id, callback_data, step, data)
+        return
 
     # --- Date: skip (only for payment) ---
     if callback_data == "fin_skip_date":
@@ -581,3 +590,292 @@ def handle_finance_summary(user_id, chat_id):
         ]
 
     send_message(chat_id, "\n".join(lines))
+
+
+# ================================================================
+#  /del_fin ID — 刪除財務記錄
+# ================================================================
+
+def handle_del_fin(user_id, chat_id, args):
+    sid = parse_short_id(args)
+    if sid is None:
+        send_message(chat_id, "❌ 請提供財務記錄 ID，例如：`/del_fin 3`")
+        return
+
+    item = query_gsi3(ENTITY_FIN, sid)
+    if item is None:
+        send_message(chat_id, f"❌ 找不到 ID 為 `{sid}` 的財務記錄。")
+        return
+
+    if item.get("status") == FIN_STATUS_CANCELLED:
+        send_message(chat_id, f"⚠️ 記錄 `{sid}` 已被刪除。")
+        return
+
+    fin_type = item.get("fin_type", "")
+    type_info = _FIN_TYPE_DISPLAY.get(fin_type, {})
+    type_emoji = type_info.get("emoji", "💰")
+    amount = Decimal(str(item.get("amount", 0)))
+
+    text = (
+        f"🗑️ *確認刪除財務記錄？*\n\n"
+        f"{type_emoji} {escape_markdown(item.get('title', ''))}\n"
+        f"💲 {format_currency(amount)}\n"
+        f"🔖 ID: `{sid}`"
+    )
+    send_message(
+        chat_id,
+        text,
+        reply_markup=build_confirm_keyboard(
+            f"delfin_confirm_{sid}",
+            f"delfin_cancel_{sid}",
+        ),
+    )
+
+
+def handle_del_fin_callback(user_id, chat_id, message_id, callback_data):
+    """Handle delfin_confirm_<sid> / delfin_cancel_<sid> standalone callbacks."""
+    if callback_data.startswith("delfin_confirm_"):
+        raw = callback_data[len("delfin_confirm_"):]
+        sid = parse_short_id(raw)
+        if sid is None:
+            return
+
+        item = query_gsi3(ENTITY_FIN, sid)
+        if item is None:
+            edit_message_text(chat_id, message_id, f"❌ 找不到 ID `{sid}`。")
+            return
+
+        update_item(
+            pk=item["PK"],
+            sk=item["SK"],
+            update_expr="SET #st = :s",
+            expr_values={":s": FIN_STATUS_CANCELLED},
+            expr_names={"#st": "status"},
+        )
+
+        amount = Decimal(str(item.get("amount", 0)))
+        fin_type = item.get("fin_type", "")
+        type_info = _FIN_TYPE_DISPLAY.get(fin_type, {})
+        edit_message_text(
+            chat_id,
+            message_id,
+            f"🗑️ 已刪除財務記錄：\n\n"
+            f"{type_info.get('emoji', '💰')} {escape_markdown(item.get('title', ''))}\n"
+            f"💲 {format_currency(amount)}\n"
+            f"🔖 ID: `{sid}`",
+        )
+        logger.info(json.dumps({
+            "event_type": "finance_deleted",
+            "short_id": sid,
+        }))
+
+    elif callback_data.startswith("delfin_cancel_"):
+        edit_message_text(chat_id, message_id, "✅ 已取消刪除。")
+
+
+# ================================================================
+#  /edit_fin ID — 編輯財務記錄
+# ================================================================
+
+def handle_edit_fin(user_id, chat_id, args):
+    sid = parse_short_id(args)
+    if sid is None:
+        send_message(chat_id, "❌ 請提供財務記錄 ID，例如：`/edit_fin 3`")
+        return
+
+    item = query_gsi3(ENTITY_FIN, sid)
+    if item is None:
+        send_message(chat_id, f"❌ 找不到 ID 為 `{sid}` 的財務記錄。")
+        return
+
+    if item.get("status") == FIN_STATUS_CANCELLED:
+        send_message(chat_id, f"⚠️ 記錄 `{sid}` 已被刪除，無法編輯。")
+        return
+
+    conv_data = {
+        "_module": CONV_MODULE_EDIT_FIN,
+        "pk": item["PK"],
+        "sk": item["SK"],
+        "short_id": sid,
+        "fin_type": item.get("fin_type", ""),
+    }
+    set_conversation(user_id, CONV_MODULE_EDIT_FIN, "choose_field", conv_data)
+    _ask_edit_fin_field(chat_id, item)
+
+
+def _ask_edit_fin_field(chat_id, item):
+    fin_type = item.get("fin_type", "")
+    type_info = _FIN_TYPE_DISPLAY.get(fin_type, {})
+    type_emoji = type_info.get("emoji", "💰")
+    amount = Decimal(str(item.get("amount", 0)))
+    cat_info = FIN_CATEGORIES.get(item.get("category", "other"), {})
+    cat_display = f"{cat_info.get('emoji', '')} {cat_info.get('display', '')}"
+    fin_date = item.get("date", "")
+    date_display = format_date_full(fin_date) if fin_date else "未設定"
+    notes = item.get("notes", "") or "無"
+
+    text = (
+        f"✏️ *編輯財務記錄：{escape_markdown(item.get('title', ''))}*\n\n"
+        f"{type_emoji} 類型：{type_info.get('label', '')}\n"
+        f"1️⃣ 名稱：{escape_markdown(item.get('title', ''))}\n"
+        f"2️⃣ 金額：{format_currency(amount)}\n"
+        f"3️⃣ 日期：{date_display}\n"
+        f"4️⃣ 分類：{cat_display}\n"
+        f"5️⃣ 備註：{escape_markdown(notes)}\n\n"
+        "請選擇要編輯的欄位："
+    )
+    rows = [
+        [
+            {"text": "1️⃣ 名稱", "callback_data": "editfin_field_title"},
+            {"text": "2️⃣ 金額", "callback_data": "editfin_field_amount"},
+        ],
+        [
+            {"text": "3️⃣ 日期", "callback_data": "editfin_field_date"},
+            {"text": "4️⃣ 分類", "callback_data": "editfin_field_category"},
+        ],
+        [
+            {"text": "5️⃣ 備註", "callback_data": "editfin_field_notes"},
+        ],
+        [
+            {"text": "✅ 完成編輯", "callback_data": "editfin_done"},
+        ],
+    ]
+    send_message(chat_id, text, reply_markup=build_inline_keyboard(rows))
+
+
+def _reload_fin_item(data):
+    """Re-fetch the finance item from DynamoDB using PK/SK stored in conv data."""
+    from bot_db import get_item
+    return get_item(data["pk"], data["sk"])
+
+
+def _edit_fin_handle_callback(user_id, chat_id, message_id, callback_data, step, data):
+    if step == "choose_field":
+        if callback_data == "editfin_done":
+            delete_conversation(user_id)
+            send_message(chat_id, "✅ 編輯完成。")
+            return
+
+        field_map = {
+            "editfin_field_title":    ("edit_title",    "請輸入新的名稱："),
+            "editfin_field_amount":   ("edit_amount",   "請輸入新的金額："),
+            "editfin_field_date":     ("edit_date",     None),
+            "editfin_field_category": ("edit_category", None),
+            "editfin_field_notes":    ("edit_notes",    "請輸入新的備註（輸入「無」清除）："),
+        }
+
+        if callback_data not in field_map:
+            return
+
+        new_step, prompt = field_map[callback_data]
+        update_conversation(user_id, new_step, data)
+
+        if callback_data == "editfin_field_category":
+            _ask_category(chat_id)
+        elif callback_data == "editfin_field_date":
+            fin_type = data.get("fin_type", "")
+            _ask_date(chat_id, fin_type)
+        else:
+            send_message(chat_id, f"✏️ {prompt}")
+
+    elif step == "edit_category":
+        if not callback_data.startswith("fin_cat_"):
+            return
+        category = callback_data[len("fin_cat_"):]
+        if category not in FIN_CATEGORIES:
+            send_message(chat_id, "❌ 無效的分類，請重新選擇。")
+            return
+
+        owner_id = data["pk"].split("#")[1]
+        update_item(
+            pk=data["pk"],
+            sk=data["sk"],
+            update_expr="SET category = :c, GSI2PK = :g2pk",
+            expr_values={
+                ":c": category,
+                ":g2pk": f"USER#{owner_id}#FIN#{category}",
+            },
+        )
+        cat_info = FIN_CATEGORIES.get(category, {})
+        cat_display = f"{cat_info.get('emoji', '')} {cat_info.get('display', '')}"
+        send_message(chat_id, f"✅ 分類已更新為：{cat_display}")
+
+        update_conversation(user_id, "choose_field", data)
+        item = _reload_fin_item(data)
+        if item:
+            _ask_edit_fin_field(chat_id, item)
+
+
+def _edit_fin_handle_step(user_id, chat_id, text, step, data):
+    if step == "edit_title":
+        valid, err = validate_text_length(text, 1, 100)
+        if not valid:
+            send_message(chat_id, f"❌ {err}")
+            return
+        new_title = text.strip()
+        update_item(
+            pk=data["pk"],
+            sk=data["sk"],
+            update_expr="SET title = :t",
+            expr_values={":t": new_title},
+        )
+        send_message(chat_id, f"✅ 名稱已更新為：{escape_markdown(new_title)}")
+
+    elif step == "edit_amount":
+        amount = parse_amount(text)
+        if amount is None:
+            send_message(chat_id, "❌ 金額格式不正確，請重新輸入。")
+            return
+        update_item(
+            pk=data["pk"],
+            sk=data["sk"],
+            update_expr="SET amount = :a",
+            expr_values={":a": amount},
+        )
+        send_message(chat_id, f"✅ 金額已更新為：{format_currency(amount)}")
+
+    elif step == "edit_date":
+        date_str = parse_date(text)
+        if date_str is None:
+            send_message(chat_id, "❌ 無法辨識日期格式，請重新輸入。")
+            return
+        fin_type = data.get("fin_type", "")
+        if fin_type == FIN_TYPE_PAYMENT and is_past_date(date_str):
+            send_message(chat_id, "❌ 付款到期日不能是過去的日期，請重新輸入。")
+            return
+        update_item(
+            pk=data["pk"],
+            sk=data["sk"],
+            update_expr="SET #d = :d",
+            expr_values={":d": date_str},
+            expr_names={"#d": "date"},
+        )
+        send_message(chat_id, f"✅ 日期已更新為：{format_date_full(date_str)}")
+
+    elif step == "edit_notes":
+        if text.strip() == "無":
+            new_notes = ""
+        else:
+            valid, err = validate_text_length(text, 1, 200)
+            if not valid:
+                send_message(chat_id, f"❌ {err}")
+                return
+            new_notes = text.strip()
+        update_item(
+            pk=data["pk"],
+            sk=data["sk"],
+            update_expr="SET notes = :n",
+            expr_values={":n": new_notes},
+        )
+        display = escape_markdown(new_notes) if new_notes else "（已清除）"
+        send_message(chat_id, f"✅ 備註已更新：{display}")
+
+    else:
+        send_message(chat_id, "請點選上方按鈕選擇欄位。")
+        return
+
+    # After any text update, return to field picker
+    update_conversation(user_id, "choose_field", data)
+    item = _reload_fin_item(data)
+    if item:
+        _ask_edit_fin_field(chat_id, item)
