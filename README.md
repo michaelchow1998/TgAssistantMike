@@ -15,6 +15,7 @@ A personal Telegram bot for scheduling, task tracking, finance, and daily remind
 | **Work** | `/add_work` `/works` `/update_progress` `/complete_work` |
 | **Finance** | `/add_payment` `/add_income` `/add_expense` `/finances` `/mark_paid` |
 | **Subscriptions** | `/add_sub` `/subs` `/cancel_sub` `/resume_sub` `/edit_sub` |
+| **Health** | `/set_health` `/add_meal` `/health` |
 | **Summary** | `/summary` `/help` |
 
 **Daily reminders** (automated, no command needed):
@@ -83,8 +84,12 @@ See **[onboard.md](doc/onboard.md)** for the full step-by-step deployment guide.
 │   ├── bot_telegram.py     # Telegram API client (httpx)
 │   ├── bot_utils.py        # Date parsing, formatting, IDs
 │   └── bot_constants.py    # All enums, categories, constants
+├── tests/                  # Unit tests (pytest, no AWS required)
+│   ├── conftest.py         # sys.path setup for Lambda layers
+│   └── test_*.py
 ├── dependencies/           # Lambda layer: third-party packages
 ├── scripts/                # Utility scripts (setwebhook, etc.)
+├── requirements-dev.txt    # Dev dependencies (pytest)
 ├── template.yaml           # AWS SAM template
 ├── onboard.md              # Deployment guide
 └── spec.md                 # Full product specification (Chinese)
@@ -96,6 +101,7 @@ See **[onboard.md](doc/onboard.md)** for the full step-by-step deployment guide.
 
 ```bash
 # Run tests
+pip install -r requirements-dev.txt   # one-time: installs pytest
 pytest tests/ -v
 
 # Tail live Lambda logs
@@ -107,6 +113,20 @@ sam build && sam deploy
 ```
 
 > **Note:** `dependencies/python/` is a build artifact — it is gitignored. Rebuild it before deploying if `dependencies/requirements.txt` changes.
+
+### Tests
+
+Tests live in `tests/` and use `pytest` with `unittest.mock` — no AWS credentials or live services required. `tests/conftest.py` injects the Lambda layer paths (`shared/python`, `webhook_handler`, `reminder_handler`) into `sys.path` so imports resolve correctly.
+
+| File | Coverage |
+|---|---|
+| `test_bot_utils.py` | Date/time parsing (Chinese shortcuts), formatting, repeat-occurrence helpers |
+| `test_bot_telegram.py` | Inline keyboard and confirm/skip keyboard builders |
+| `test_bot_constants.py` | Contract tests — entity types, conv modules, meal display, command sets |
+| `test_health_handler.py` | Health module: parsers, conversation flows, today summary, monthly report |
+| `test_subscription_handler.py` | `_calc_next_billing` — monthly/quarterly/yearly, day-clamping edge cases |
+| `test_notifier.py` | Reminder formatting helpers and `_split_message` chunking |
+| `test_router.py` | Routing: owner auth, unknown commands, cancel, conversation dispatch |
 
 ---
 

@@ -65,6 +65,8 @@ python scripts/setwebhook.py
 2. **Dependencies layer is a build artifact** — `dependencies/python/` is gitignored; rebuild before `sam deploy` if packages changed
 3. **Webhook requires a secret path segment** — API Gateway URL needs `/webhook/<secret_path>`, without it → 403
 4. **SSM parameters must exist before deploy** — `/bot/token`, `/bot/owner_id`, `/bot/webhook_secret`, `/bot/webhook_path`
+5. **Always update `help_module.py` when adding a new handler** — `webhook_handler/handlers/help_module.py` contains `_HELP_MODULES`, `_HELP_MENU_ROWS`, and `_HELP_ALIASES`; new commands must be added to all three or they won't appear in `/help`
+6. **Mock at the handler's import level, not the source module** — patch `"handlers.health.get_item"`, not `"bot_db.get_item"`; functions are resolved at the call site's namespace
 
 ## Code Architecture
 
@@ -147,3 +149,46 @@ EventBridge passes `{"reminder_type": "<type>"}`. Types: `morning` (08:00 HKT), 
 2. Expose `handle_<cmd>(user_id, chat_id, ...)` — plus `handle_step` / `handle_callback` if multi-step
 3. Add the route in `webhook_handler/handlers/router.py` (`_route_command`)
 4. If it starts a conversation, add the command to `CONVERSATION_STARTER_COMMANDS` in `shared/python/bot_constants.py` and add dispatch entries in `router.py`
+5. **Update `help_module.py`** — add entry to `_HELP_MODULES`, button to `_HELP_MENU_ROWS`, and alias(es) to `_HELP_ALIASES`
+6. Add entity/module constants to `bot_constants.py` (`ENTITY_*`, `CONV_MODULE_*`, display names)
+7. Write unit tests in `tests/` — follow the mock-at-handler-namespace pattern
+
+## Testing
+
+```bash
+# Install dev dependencies (one-time)
+pip install -r requirements-dev.txt
+
+# Run all tests
+pytest tests/ -v
+
+# Run a single test file
+pytest tests/test_health_handler.py -v
+```
+
+### Test Structure
+
+| File | What it covers |
+|---|---|
+| `tests/conftest.py` | Adds `shared/python`, `webhook_handler`, `reminder_handler` to `sys.path` |
+| `tests/test_bot_utils.py` | All date/time parsing, formatting, repeat-occurrence helpers |
+| `tests/test_bot_telegram.py` | Inline keyboard and confirm/skip keyboard builders |
+| `tests/test_bot_constants.py` | Contract tests — verifies constant values haven't silently changed |
+| `tests/test_health_handler.py` | Health handler: parsers, conversation steps, callbacks, summary rendering |
+| `tests/test_subscription_handler.py` | `_calc_next_billing` across monthly/quarterly/yearly cycles |
+| `tests/test_notifier.py` | Reminder notifier formatting helpers and `_split_message` |
+| `tests/test_router.py` | Router: owner auth, unknown commands, conversation dispatch, callbacks |
+
+### Mocking Convention
+
+Shared modules (`bot_db`, `bot_config`, `bot_telegram`) use lazy initialisation — they only call boto3/SSM on first function call, so **importing them never fails** even without AWS credentials.
+
+Patch dependencies at the **handler's namespace**, not the source:
+
+```python
+# Correct — patches the name as the handler resolves it
+patch("handlers.health.get_item", return_value=None)
+
+# Wrong — patches the source, handler already holds its own reference
+patch("bot_db.get_item", return_value=None)
+```
