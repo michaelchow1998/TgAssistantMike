@@ -12,8 +12,8 @@
 import logging
 from decimal import Decimal
 
-from telegram import send_message      # shared layer
-from config import get_param           # shared layer
+from bot_telegram import send_message   # shared layer
+from bot_config import get_owner_id    # shared layer
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +32,10 @@ _cached_chat_id = None
 # ================================================================
 
 def get_owner_chat_id():
-    """從 SSM 取得 owner chat_id（快取）。"""
+    """取得 owner chat_id（與 owner_id 相同，快取）。"""
     global _cached_chat_id
     if _cached_chat_id is None:
-        _cached_chat_id = get_param("bot/owner_chat_id")
+        _cached_chat_id = get_owner_id()
     return _cached_chat_id
 
 
