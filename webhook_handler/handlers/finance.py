@@ -551,14 +551,25 @@ def handle_finance_summary(user_id, chat_id, args=""):
     paid_payments = [p for p in payment_items if p.get("status") == FIN_STATUS_PAID]
     pending_payments = [p for p in payment_items if p.get("status") == FIN_STATUS_PENDING]
 
+    # --- Fetch subscriptions due this month ---
+    sub_items = query_gsi1(
+        gsi1pk="SUB#active",
+        sk_condition=Key("GSI1SK").begins_with(month_prefix),
+    )
+    total_sub = sum(Decimal(str(s.get("amount", 0))) for s in sub_items)
+
     # --- Calculate totals ---
     total_income = sum(Decimal(str(i.get("amount", 0))) for i in income_items)
     total_expense = sum(Decimal(str(i.get("amount", 0))) for i in expense_items)
     total_paid = sum(Decimal(str(i.get("amount", 0))) for i in paid_payments)
     total_pending = sum(Decimal(str(i.get("amount", 0))) for i in pending_payments)
 
-    total_outflow = total_expense + total_paid
-    net = total_income - total_outflow
+    total_outflow_settled = total_expense + total_paid + total_sub
+    net_settled = total_income - total_outflow_settled
+    net_with_pending = net_settled - total_pending
+
+    settled_sign = "+" if net_settled >= 0 else ""
+    pending_sign = "+" if net_with_pending >= 0 else ""
 
     # --- Category breakdown for expenses ---
     expense_by_cat = {}
@@ -571,16 +582,21 @@ def handle_finance_summary(user_id, chat_id, args=""):
     sorted_cats = sorted(expense_by_cat.items(), key=lambda x: x[1], reverse=True)
 
     # --- Build message ---
-    net_emoji = "📈" if net >= 0 else "📉"
-
     lines = [
         f"💰 *{month_label} 財務摘要*\n",
         f"💵 收入：{format_currency(total_income)}（{len(income_items)} 筆）",
         f"💸 支出：{format_currency(total_expense)}（{len(expense_items)} 筆）",
         f"💳 已付款：{format_currency(total_paid)}（{len(paid_payments)} 筆）",
         f"⏳ 待付款：{format_currency(total_pending)}（{len(pending_payments)} 筆）",
-        f"",
-        f"{net_emoji} 淨額（收入 - 支出 - 已付款）：{format_currency(net)}",
+    ]
+    if total_sub > 0:
+        lines.append(f"📦 當月訂閱：{format_currency(total_sub)}（{len(sub_items)} 項）")
+    lines += [
+        "",
+        f"✅ 已結清淨額：{settled_sign}{format_currency(net_settled)}",
+        f"   （收入 − 支出 − 已付款 − 當月訂閱）",
+        f"📊 含待付淨額：{pending_sign}{format_currency(net_with_pending)}",
+        f"   （再扣除待付款項）",
     ]
 
     if sorted_cats:
@@ -594,7 +610,7 @@ def handle_finance_summary(user_id, chat_id, args=""):
             pct = (amt / total_expense * 100) if total_expense > 0 else Decimal("0")
             lines.append(f"  {emoji} {display}：{format_currency(amt)}（{pct:.0f}%）")
 
-    if not income_items and not expense_items and not payment_items:
+    if not income_items and not expense_items and not payment_items and not sub_items:
         lines = [
             f"💰 *{month_label} 財務摘要*\n",
             f"{month_label}尚無任何財務紀錄。",
