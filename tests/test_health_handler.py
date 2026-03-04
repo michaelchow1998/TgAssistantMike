@@ -17,6 +17,7 @@ from handlers.health import (
     _parse_calories,
     _parse_positive_int,
     _parse_non_negative_int,
+    _effective_daily_calories,
 )
 
 OWNER_ID = 111
@@ -540,3 +541,53 @@ class TestMonthlyReportContent:
             handle_health(USER_ID, CHAT_ID, "2026-03")
             msg = mock_send.call_args[0][1]
             assert "52,700" in msg
+
+
+class TestEffectiveDailyCalories:
+    def test_all_three_main_meals_present_returns_actual_sum(self):
+        meal_map = {"breakfast": 500, "lunch": 700, "dinner": 600}
+        calories, filled = _effective_daily_calories(meal_map, tdee=2000)
+        assert calories == 1800
+        assert filled is False
+
+    def test_with_other_meal_also_all_main_present(self):
+        meal_map = {"breakfast": 500, "lunch": 700, "dinner": 600, "other": 200}
+        calories, filled = _effective_daily_calories(meal_map, tdee=2000)
+        assert calories == 2000
+        assert filled is False
+
+    def test_missing_breakfast_returns_tdee(self):
+        meal_map = {"lunch": 700, "dinner": 600}
+        calories, filled = _effective_daily_calories(meal_map, tdee=2200)
+        assert calories == 2200
+        assert filled is True
+
+    def test_missing_lunch_returns_tdee(self):
+        meal_map = {"breakfast": 500, "dinner": 600}
+        calories, filled = _effective_daily_calories(meal_map, tdee=2200)
+        assert calories == 2200
+        assert filled is True
+
+    def test_missing_dinner_returns_tdee(self):
+        meal_map = {"breakfast": 500, "lunch": 700}
+        calories, filled = _effective_daily_calories(meal_map, tdee=2200)
+        assert calories == 2200
+        assert filled is True
+
+    def test_empty_meal_map_with_tdee_returns_tdee(self):
+        meal_map = {}
+        calories, filled = _effective_daily_calories(meal_map, tdee=2200)
+        assert calories == 2200
+        assert filled is True
+
+    def test_no_tdee_returns_actual_sum_regardless_of_missing(self):
+        meal_map = {"breakfast": 500}   # missing lunch + dinner
+        calories, filled = _effective_daily_calories(meal_map, tdee=None)
+        assert calories == 500
+        assert filled is False
+
+    def test_only_other_meal_with_tdee_returns_tdee(self):
+        meal_map = {"other": 300}   # no main meals
+        calories, filled = _effective_daily_calories(meal_map, tdee=2000)
+        assert calories == 2000
+        assert filled is True

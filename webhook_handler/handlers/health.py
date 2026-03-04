@@ -377,3 +377,16 @@ def _parse_non_negative_int(text):
         return val if val >= 0 else None
     except (ValueError, AttributeError):
         return None
+
+
+def _effective_daily_calories(meal_map, tdee):
+    """
+    Returns (effective_calories: int, was_filled: bool).
+    If tdee is set and any of breakfast/lunch/dinner is missing from meal_map,
+    return tdee as a conservative estimate for that day.
+    """
+    if tdee is not None:
+        main_meals = {"breakfast", "lunch", "dinner"}
+        if not main_meals.issubset(meal_map.keys()):
+            return tdee, True
+    return sum(meal_map.values()), False
