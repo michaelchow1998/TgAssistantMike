@@ -505,8 +505,10 @@ class TestTodaySummaryContent:
             assert "TDEE" in msg
             assert "2,200" in msg   # TDEE value shown
 
-    def test_missing_main_meal_uses_tdee_for_goal_progress(self):
-        # breakfast only → TDEE=2200 used → goal=1700 → over by 500
+    def test_missing_main_meal_uses_actual_calories_for_goal_progress(self):
+        # breakfast(600) only, lunch+dinner missing → TDEE warning shown
+        # but goal progress uses actual 600, not TDEE(2200) — day is not over yet
+        # goal=1700, remaining=1700-600=1100 → still under goal
         meals = [
             {"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY},
         ]
@@ -519,9 +521,10 @@ class TestTodaySummaryContent:
              patch("handlers.health.send_message") as mock_send:
             handle_health(USER_ID, CHAT_ID)
             msg = mock_send.call_args[0][1]
-            # TDEE(2200) > goal(1700) → surplus = 500
-            assert "500" in msg
-            assert "超出" in msg
+            # actual(600) < goal(1700) → remaining 1100
+            assert "1,100" in msg
+            assert "剩餘" in msg
+            assert "超出" not in msg
 
     def test_all_main_meals_present_no_tdee_warning(self):
         meals = [

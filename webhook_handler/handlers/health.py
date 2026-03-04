@@ -324,7 +324,9 @@ def _render_today_summary(chat_id, owner_id, date_str):
         if was_filled:
             lines.append(f"⚠️ 缺少主食記錄，以 TDEE 計算：{effective:,} kcal")
 
-        remaining = daily_goal - effective
+        # Use actual calories for today's progress — the day is not over yet.
+        # TDEE-fill is informational only in the today view.
+        remaining = daily_goal - actual_total
         lines += [
             "",
             "📊 *目標進度*",
