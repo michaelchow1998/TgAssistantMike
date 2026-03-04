@@ -721,3 +721,94 @@ class TestWeeklyReportContent:
             handle_health(USER_ID, CHAT_ID, "week")
             msg = mock_send.call_args[0][1]
             assert "TDEE 填補" in msg
+
+
+class TestYearlyReportContent:
+    """Tests for /health 2026."""
+
+    def test_year_arg_triggers_yearly_report(self):
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=[]), \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026")
+            mock_send.assert_called_once()
+            assert "2026" in mock_send.call_args[0][1]
+            assert "年報" in mock_send.call_args[0][1]
+
+    def test_no_meals_shows_zero_days(self):
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=[]), \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026")
+            msg = mock_send.call_args[0][1]
+            assert "0 天" in msg
+
+    def test_complete_days_counted_correctly(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": "2026-01-01"},
+            {"meal_type": "lunch",     "calories": Decimal("600"), "date": "2026-01-01"},
+            {"meal_type": "dinner",    "calories": Decimal("700"), "date": "2026-01-01"},
+            {"meal_type": "breakfast", "calories": Decimal("400"), "date": "2026-02-01"},
+            {"meal_type": "lunch",     "calories": Decimal("500"), "date": "2026-02-01"},
+            {"meal_type": "dinner",    "calories": Decimal("600"), "date": "2026-02-01"},
+        ]
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026")
+            msg = mock_send.call_args[0][1]
+            assert "2 天" in msg
+
+    def test_monthly_breakdown_shown(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": "2026-01-01"},
+            {"meal_type": "lunch",     "calories": Decimal("600"), "date": "2026-01-01"},
+            {"meal_type": "dinner",    "calories": Decimal("700"), "date": "2026-01-01"},
+        ]
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026")
+            msg = mock_send.call_args[0][1]
+            assert "01月" in msg
+            assert "月份摘要" in msg
+
+    def test_tdee_fill_counted_in_year_stats(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": "2026-01-01"},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026")
+            msg = mock_send.call_args[0][1]
+            assert "TDEE 填補：1 天" in msg
+
+    def test_target_total_uses_full_year_days(self):
+        # 2026 is not a leap year → 365 days; daily_goal=1700 → 620,500
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=[]), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026")
+            msg = mock_send.call_args[0][1]
+            assert "620,500" in msg   # 1700 * 365
+
+    def test_invalid_year_below_range_shows_error(self):
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "1999")
+            assert "❌" in mock_send.call_args[0][1]
+
+    def test_invalid_year_above_range_shows_error(self):
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2100")
+            assert "❌" in mock_send.call_args[0][1]

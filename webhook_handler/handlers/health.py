@@ -449,6 +449,93 @@ def _render_weekly_report(chat_id, owner_id, monday_str, today_str):
     send_message(chat_id, "\n".join(lines))
 
 
+def _render_yearly_report(chat_id, owner_id, year_str):
+    from calendar import isleap
+    meals = query_gsi1(
+        gsi1pk=f"USER#{owner_id}#HEALTH",
+        sk_condition=Key("GSI1SK").begins_with(f"{year_str}-"),
+    )
+    settings = _get_settings(owner_id)
+    tdee = int(settings["tdee"]) if settings else None
+    daily_goal = (int(settings["tdee"]) - int(settings["deficit"])) if settings else None
+
+    # Group by date → {meal_type: calories}
+    day_meal_maps = {}
+    for meal in meals:
+        d = meal["date"]
+        if d not in day_meal_maps:
+            day_meal_maps[d] = {}
+        day_meal_maps[d][meal["meal_type"]] = int(meal["calories"])
+
+    num_days = 0
+    total_intake = 0
+    fill_count = 0
+    days_ok = 0
+    days_over = 0
+    month_stats = {}  # "YYYY-MM" → {days, total, days_ok, days_over}
+
+    for d, meal_map in day_meal_maps.items():
+        effective, was_filled = _effective_daily_calories(meal_map, tdee)
+        num_days += 1
+        total_intake += effective
+        if was_filled:
+            fill_count += 1
+        if daily_goal is not None:
+            if effective <= daily_goal:
+                days_ok += 1
+            else:
+                days_over += 1
+        month_key = d[:7]
+        if month_key not in month_stats:
+            month_stats[month_key] = {"days": 0, "total": 0, "days_ok": 0, "days_over": 0}
+        month_stats[month_key]["days"] += 1
+        month_stats[month_key]["total"] += effective
+        if daily_goal is not None:
+            if effective <= daily_goal:
+                month_stats[month_key]["days_ok"] += 1
+            else:
+                month_stats[month_key]["days_over"] += 1
+
+    avg_intake = round(total_intake / num_days) if num_days > 0 else 0
+    fill_note = f"（含 TDEE 填補：{fill_count} 天）" if fill_count > 0 else ""
+
+    lines = [
+        f"📊 *{year_str} 年健康年報*",
+        "──────────────────────",
+        f"📅 有記錄天數：{num_days} 天{fill_note}",
+        f"🔥 平均日攝取：{avg_intake:,} kcal",
+    ]
+
+    if daily_goal is not None:
+        lines += [
+            f"🎯 每日目標：{daily_goal:,} kcal",
+            f"✅ 達標天數：{days_ok} 天 / ⚠️ 超標天數：{days_over} 天",
+        ]
+
+    if month_stats:
+        lines += ["──────────────────────", "*月份摘要*"]
+        for month_key in sorted(month_stats.keys()):
+            ms = month_stats[month_key]
+            month_avg = round(ms["total"] / ms["days"]) if ms["days"] > 0 else 0
+            month_label = f"{int(month_key[5:7]):02d}月"
+            if daily_goal is not None:
+                lines.append(
+                    f"{month_label}：平均 {month_avg:,} kcal — ✅ {ms['days_ok']}天 ⚠️ {ms['days_over']}天"
+                )
+            else:
+                lines.append(f"{month_label}：平均 {month_avg:,} kcal — {ms['days']}天有記錄")
+
+    year_int = int(year_str)
+    days_in_year = 366 if isleap(year_int) else 365
+    lines.append("──────────────────────")
+    lines.append(f"全年總攝取：{total_intake:,} kcal")
+    if daily_goal is not None:
+        target_total = daily_goal * days_in_year
+        lines.append(f"目標合計：{target_total:,} kcal（{days_in_year}天 × {daily_goal:,}）")
+
+    send_message(chat_id, "\n".join(lines))
+
+
 # ================================================================
 #  Private: Input parsers
 # ================================================================
