@@ -438,9 +438,11 @@ class TestTodaySummaryContent:
             assert "1,450" in msg   # total = 650 + 800
 
     def test_shows_remaining_when_under_goal(self):
+        # All three main meals present → no TDEE fill; total=1450, remaining=250
         meals = [
-            {"meal_type": "breakfast", "calories": Decimal("650"), "date": TODAY},
-            {"meal_type": "lunch",     "calories": Decimal("800"), "date": TODAY},
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("600"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("350"), "date": TODAY},
         ]
         settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
         with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
@@ -456,9 +458,11 @@ class TestTodaySummaryContent:
             assert "✅" in msg
 
     def test_shows_surplus_when_over_goal(self):
+        # All three main meals present → no TDEE fill; total=2000, surplus=300
         meals = [
-            {"meal_type": "breakfast", "calories": Decimal("1000"), "date": TODAY},
-            {"meal_type": "lunch",     "calories": Decimal("1000"), "date": TODAY},
+            {"meal_type": "breakfast", "calories": Decimal("700"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("700"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("600"), "date": TODAY},
         ]
         settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
         with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
@@ -482,6 +486,74 @@ class TestTodaySummaryContent:
             handle_health(USER_ID, CHAT_ID)
             msg = mock_send.call_args[0][1]
             assert "目標進度" not in msg
+
+    def test_missing_main_meal_shows_tdee_fill_warning(self):
+        # Only breakfast recorded → lunch + dinner missing → TDEE fill warning
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.get_weekday_name", return_value=WEEKDAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID)
+            msg = mock_send.call_args[0][1]
+            assert "缺少主食記錄" in msg
+            assert "TDEE" in msg
+            assert "2,200" in msg   # TDEE value shown
+
+    def test_missing_main_meal_uses_tdee_for_goal_progress(self):
+        # breakfast only → TDEE=2200 used → goal=1700 → over by 500
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.get_weekday_name", return_value=WEEKDAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID)
+            msg = mock_send.call_args[0][1]
+            # TDEE(2200) > goal(1700) → surplus = 500
+            assert "500" in msg
+            assert "超出" in msg
+
+    def test_all_main_meals_present_no_tdee_warning(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("700"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("500"), "date": TODAY},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.get_weekday_name", return_value=WEEKDAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID)
+            msg = mock_send.call_args[0][1]
+            assert "缺少主食記錄" not in msg
+
+    def test_missing_meal_no_settings_no_warning(self):
+        # No settings → TDEE fill is inactive → no warning
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY},
+        ]
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.get_weekday_name", return_value=WEEKDAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID)
+            msg = mock_send.call_args[0][1]
+            assert "缺少主食記錄" not in msg
 
 
 # ================================================================

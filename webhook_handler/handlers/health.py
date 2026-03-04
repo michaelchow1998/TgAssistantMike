@@ -301,25 +301,30 @@ def _render_today_summary(chat_id, owner_id, date_str):
         "──────────────────────",
     ]
 
-    total = 0
+    actual_total = 0
     for meal_type in ("breakfast", "lunch", "dinner", "other"):
         info = HEALTH_MEAL_DISPLAY[meal_type]
         if meal_type in meal_map:
             cal = meal_map[meal_type]
-            total += cal
+            actual_total += cal
             lines.append(f"{info['emoji']} {info['label']}：{cal:,} kcal")
         else:
             lines.append(f"{info['emoji']} {info['label']}：（未記錄）")
 
     lines.append("──────────────────────")
-    lines.append(f"總攝取：{total:,} kcal")
+    lines.append(f"總攝取：{actual_total:,} kcal")
 
     settings = _get_settings(owner_id)
     if settings:
         tdee = int(settings["tdee"])
         deficit = int(settings["deficit"])
         daily_goal = tdee - deficit
-        remaining = daily_goal - total
+        effective, was_filled = _effective_daily_calories(meal_map, tdee)
+
+        if was_filled:
+            lines.append(f"⚠️ 缺少主食記錄，以 TDEE 計算：{effective:,} kcal")
+
+        remaining = daily_goal - effective
         lines += [
             "",
             "📊 *目標進度*",
