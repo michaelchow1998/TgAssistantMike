@@ -6,6 +6,7 @@
 import re
 import logging
 from calendar import monthrange
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from boto3.dynamodb.conditions import Key
@@ -198,6 +199,13 @@ def _get_meals_for_month(owner_id, month_prefix):
         gsi1pk=f"USER#{owner_id}#HEALTH",
         sk_condition=Key("GSI1SK").begins_with(month_prefix),
     )
+
+
+def _get_week_range(today_str):
+    """Return (monday_str, today_str) for the week containing today_str."""
+    dt = datetime.strptime(today_str, "%Y-%m-%d")
+    monday = dt - timedelta(days=dt.weekday())
+    return monday.strftime("%Y-%m-%d"), today_str
 
 
 def _save_meal(owner_id, date_str, meal_type, calories):

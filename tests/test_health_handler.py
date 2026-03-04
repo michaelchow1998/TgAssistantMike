@@ -18,6 +18,7 @@ from handlers.health import (
     _parse_positive_int,
     _parse_non_negative_int,
     _effective_daily_calories,
+    _get_week_range,
 )
 
 OWNER_ID = 111
@@ -591,3 +592,25 @@ class TestEffectiveDailyCalories:
         calories, filled = _effective_daily_calories(meal_map, tdee=2000)
         assert calories == 2000
         assert filled is True
+
+
+class TestGetWeekRange:
+    def test_monday_returns_same_day_as_start(self):
+        monday, end = _get_week_range("2026-03-02")   # Monday
+        assert monday == "2026-03-02"
+        assert end == "2026-03-02"
+
+    def test_wednesday_returns_monday_as_start(self):
+        monday, end = _get_week_range("2026-03-04")   # Wednesday
+        assert monday == "2026-03-02"
+        assert end == "2026-03-04"
+
+    def test_sunday_returns_monday_as_start(self):
+        monday, end = _get_week_range("2026-03-08")   # Sunday
+        assert monday == "2026-03-02"
+        assert end == "2026-03-08"
+
+    def test_week_spanning_month_boundary(self):
+        monday, end = _get_week_range("2026-03-05")   # Thursday
+        assert monday == "2026-03-02"
+        assert end == "2026-03-05"
