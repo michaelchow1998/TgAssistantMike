@@ -22,6 +22,7 @@ from bot_constants import (
     FIN_CATEGORIES,
     CONV_MODULE_FINANCE,
     CONV_MODULE_EDIT_FIN,
+    SUB_STATUS_ACTIVE,
 )
 from bot_config import get_owner_id
 from bot_telegram import (
@@ -553,8 +554,9 @@ def handle_finance_summary(user_id, chat_id, args=""):
 
     # --- Fetch subscriptions due this month ---
     sub_items = query_gsi1(
-        gsi1pk="SUB#active",
+        gsi1pk=f"USER#{owner_id}#SUB",
         sk_condition=Key("GSI1SK").begins_with(month_prefix),
+        filter_expr=Attr("status").eq(SUB_STATUS_ACTIVE),
     )
     total_sub = sum(Decimal(str(s.get("amount", 0))) for s in sub_items)
 
