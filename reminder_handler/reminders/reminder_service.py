@@ -586,7 +586,8 @@ class ReminderService:
         lines = ["🥗 *今日健康*"]
         actual_total = 0
         for meal_type in ("breakfast", "lunch", "dinner", "other"):
-            info = HEALTH_MEAL_DISPLAY[meal_type]; emoji, label = info["emoji"], info["label"]
+            info = HEALTH_MEAL_DISPLAY[meal_type]
+            emoji, label = info["emoji"], info["label"]
             if meal_type in meal_map:
                 cal = meal_map[meal_type]
                 actual_total += cal
