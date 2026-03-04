@@ -571,6 +571,9 @@ class TestMonthlyReportContent:
             assert "0 天" in msg
 
     def test_with_meals_counts_recording_days(self):
+        # Day 1: breakfast (650) + lunch (850) — missing dinner → TDEE fill → 2200
+        # Day 2: breakfast (700) only — missing lunch + dinner → TDEE fill → 2200
+        # Both days get TDEE-filled; both 2200 > goal 1700 → 超標天數：2
         meals = [
             {"meal_type": "breakfast", "calories": Decimal("650"),  "date": "2026-03-01"},
             {"meal_type": "lunch",     "calories": Decimal("850"),  "date": "2026-03-01"},
@@ -584,9 +587,9 @@ class TestMonthlyReportContent:
             handle_health(USER_ID, CHAT_ID, "2026-03")
             msg = mock_send.call_args[0][1]
             assert "2 天" in msg        # two recording days
-            # Day 1: 650+850=1500 ≤ 1700 ✓  Day 2: 700 ≤ 1700 ✓
-            assert "達標天數：2" in msg
-            assert "超標天數：0" in msg
+            # Both days are TDEE-filled → both exceed goal
+            assert "達標天數：0" in msg
+            assert "超標天數：2" in msg
 
     def test_over_goal_day_counted_correctly(self):
         meals = [
@@ -614,6 +617,52 @@ class TestMonthlyReportContent:
             handle_health(USER_ID, CHAT_ID, "2026-03")
             msg = mock_send.call_args[0][1]
             assert "52,700" in msg
+
+    def test_incomplete_day_uses_tdee_for_average(self):
+        # Day 1: only breakfast (500) → TDEE-fill → 2200 used
+        # Day 2: full meals (500+700+600=1800) → actual used
+        # avg = (2200 + 1800) / 2 = 2000
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"),  "date": "2026-03-01"},
+            {"meal_type": "breakfast", "calories": Decimal("500"),  "date": "2026-03-02"},
+            {"meal_type": "lunch",     "calories": Decimal("700"),  "date": "2026-03-02"},
+            {"meal_type": "dinner",    "calories": Decimal("600"),  "date": "2026-03-02"},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026-03")
+            msg = mock_send.call_args[0][1]
+            assert "2,000" in msg   # avg = 2000
+
+    def test_incomplete_day_over_goal_counted_in_over_days(self):
+        # TDEE=2200 > goal=1700 → day is "over"
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"),  "date": "2026-03-01"},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026-03")
+            msg = mock_send.call_args[0][1]
+            assert "超標天數：1" in msg
+
+    def test_fill_count_shown_in_monthly_header(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"),  "date": "2026-03-01"},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "2026-03")
+            msg = mock_send.call_args[0][1]
+            assert "TDEE 填補：1 天" in msg
 
 
 class TestEffectiveDailyCalories:

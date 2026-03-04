@@ -340,30 +340,45 @@ def _render_today_summary(chat_id, owner_id, date_str):
 def _render_monthly_report(chat_id, owner_id, month_str):
     meals = _get_meals_for_month(owner_id, month_str)
     settings = _get_settings(owner_id)
-    daily_goal = None
-    if settings:
-        daily_goal = int(settings["tdee"]) - int(settings["deficit"])
+    tdee = int(settings["tdee"]) if settings else None
+    daily_goal = (int(settings["tdee"]) - int(settings["deficit"])) if settings else None
 
-    # Group by date → daily totals
-    day_totals = {}
+    # Group by date → {meal_type: calories}
+    day_meal_maps = {}
     for meal in meals:
         d = meal["date"]
-        day_totals[d] = day_totals.get(d, 0) + int(meal["calories"])
+        if d not in day_meal_maps:
+            day_meal_maps[d] = {}
+        day_meal_maps[d][meal["meal_type"]] = int(meal["calories"])
 
-    num_days = len(day_totals)
-    total_intake = sum(day_totals.values())
+    num_days = len(day_meal_maps)
+    total_intake = 0
+    fill_count = 0
+    days_ok = 0
+    days_over = 0
+
+    for d, meal_map in day_meal_maps.items():
+        effective, was_filled = _effective_daily_calories(meal_map, tdee)
+        total_intake += effective
+        if was_filled:
+            fill_count += 1
+        if daily_goal is not None:
+            if effective <= daily_goal:
+                days_ok += 1
+            else:
+                days_over += 1
+
     avg_intake = round(total_intake / num_days) if num_days > 0 else 0
+    fill_note = f"（含 TDEE 填補：{fill_count} 天）" if fill_count > 0 else ""
 
     lines = [
         f"📊 *{month_str} 健康月報*",
         "──────────────────────",
-        f"📅 有記錄天數：{num_days} 天",
+        f"📅 有記錄天數：{num_days} 天{fill_note}",
         f"🔥 平均日攝取：{avg_intake:,} kcal",
     ]
 
     if daily_goal is not None:
-        days_ok = sum(1 for cal in day_totals.values() if cal <= daily_goal)
-        days_over = num_days - days_ok
         lines += [
             f"🎯 每日目標：{daily_goal:,} kcal",
             f"✅ 達標天數：{days_ok} 天 / ⚠️ 超標天數：{days_over} 天",
