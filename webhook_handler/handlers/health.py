@@ -77,16 +77,28 @@ def handle_health(user_id, chat_id, args=""):
         _render_today_summary(chat_id, owner_id, get_today())
         return
 
+    if args == "week":
+        monday, today_end = _get_week_range(get_today())
+        _render_weekly_report(chat_id, owner_id, monday, today_end)
+        return
+
     m = re.match(r"^(\d{4})-(\d{2})$", args)
     if m and 1 <= int(m.group(2)) <= 12:
         _render_monthly_report(chat_id, owner_id, args)
+        return
+
+    m = re.match(r"^(\d{4})$", args)
+    if m and 2000 <= int(m.group(1)) <= 2099:
+        _render_yearly_report(chat_id, owner_id, args)
         return
 
     send_message(
         chat_id,
         "❌ 格式錯誤。\n\n用法：\n"
         "• `/health` — 今日飲食記錄\n"
-        "• `/health 2026-03` — 月報",
+        "• `/health week` — 本週記錄\n"
+        "• `/health 2026-03` — 月報\n"
+        "• `/health 2026` — 年報",
     )
 
 
@@ -198,6 +210,14 @@ def _get_meals_for_month(owner_id, month_prefix):
     return query_gsi1(
         gsi1pk=f"USER#{owner_id}#HEALTH",
         sk_condition=Key("GSI1SK").begins_with(month_prefix),
+    )
+
+
+def _get_meals_for_week(owner_id, monday_str, today_str):
+    """Fetch all meal records between monday_str and today_str (inclusive)."""
+    return query_gsi1(
+        gsi1pk=f"USER#{owner_id}#HEALTH",
+        sk_condition=Key("GSI1SK").between(monday_str, today_str + "#~"),
     )
 
 
@@ -352,6 +372,79 @@ def _render_monthly_report(chat_id, owner_id, month_str):
     if daily_goal is not None:
         target_total = daily_goal * days_in_month
         lines.append(f"目標合計：{target_total:,} kcal")
+
+    send_message(chat_id, "\n".join(lines))
+
+
+def _render_weekly_report(chat_id, owner_id, monday_str, today_str):
+    meals = _get_meals_for_week(owner_id, monday_str, today_str)
+    settings = _get_settings(owner_id)
+    tdee = int(settings["tdee"]) if settings else None
+    daily_goal = (int(settings["tdee"]) - int(settings["deficit"])) if settings else None
+
+    # Group by date → {meal_type: calories}
+    day_meal_maps = {}
+    for meal in meals:
+        d = meal["date"]
+        if d not in day_meal_maps:
+            day_meal_maps[d] = {}
+        day_meal_maps[d][meal["meal_type"]] = int(meal["calories"])
+
+    # Build ordered list of days Mon → today
+    monday_dt = datetime.strptime(monday_str, "%Y-%m-%d")
+    today_dt = datetime.strptime(today_str, "%Y-%m-%d")
+    days = []
+    cur = monday_dt
+    while cur <= today_dt:
+        days.append(cur.strftime("%Y-%m-%d"))
+        cur += timedelta(days=1)
+
+    _WD = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
+    lines = [
+        "📊 *本週飲食記錄*",
+        f"📆 {monday_str}（週一）~ {today_str}（{_WD[today_dt.weekday()]}）",
+        "──────────────────────",
+    ]
+
+    counted_days = 0
+    total_for_avg = 0
+    fill_count = 0
+    days_ok = 0
+    days_over = 0
+
+    for d in days:
+        wd = _WD[datetime.strptime(d, "%Y-%m-%d").weekday()]
+        meal_map = day_meal_maps.get(d)
+        if not meal_map:
+            lines.append(f"{wd} {d}：（無記錄）")
+            continue
+        effective, was_filled = _effective_daily_calories(meal_map, tdee)
+        counted_days += 1
+        total_for_avg += effective
+        if was_filled:
+            fill_count += 1
+            lines.append(f"{wd} {d}：⚠️ 缺主食，以 TDEE 計 {effective:,} kcal")
+        else:
+            status = ""
+            if daily_goal is not None:
+                status = " ✅" if effective <= daily_goal else " ⚠️"
+            lines.append(f"{wd} {d}：{effective:,} kcal{status}")
+        if daily_goal is not None:
+            if effective <= daily_goal:
+                days_ok += 1
+            else:
+                days_over += 1
+
+    lines.append("──────────────────────")
+    avg = round(total_for_avg / counted_days) if counted_days > 0 else 0
+    fill_note = f"（含 TDEE 填補：{fill_count} 天）" if fill_count > 0 else ""
+    lines.append(f"平均日攝取：{avg:,} kcal{fill_note}")
+
+    if daily_goal is not None:
+        lines += [
+            f"🎯 每日目標：{daily_goal:,} kcal",
+            f"✅ 達標天數：{days_ok} 天 / ⚠️ 超標天數：{days_over} 天",
+        ]
 
     send_message(chat_id, "\n".join(lines))
 

@@ -614,3 +614,110 @@ class TestGetWeekRange:
         monday, end = _get_week_range("2026-03-05")   # Thursday
         assert monday == "2026-03-02"
         assert end == "2026-03-05"
+
+
+# ================================================================
+#  Weekly report content — via handle_health with "week"
+# ================================================================
+
+class TestWeeklyReportContent:
+    """Tests for /health week."""
+
+    def test_week_arg_triggers_weekly_report(self):
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.query_gsi1", return_value=[]) as mock_query, \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "week")
+            mock_send.assert_called_once()
+            assert "本週" in mock_send.call_args[0][1]
+
+    def test_days_with_no_records_shown_as_no_record(self):
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.query_gsi1", return_value=[]), \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "week")
+            msg = mock_send.call_args[0][1]
+            assert "無記錄" in msg
+
+    def test_complete_day_shows_actual_calories(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("700"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("600"), "date": TODAY},
+        ]
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "week")
+            msg = mock_send.call_args[0][1]
+            assert "1,800" in msg   # 500+700+600
+
+    def test_incomplete_day_with_settings_shows_tdee_fill(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": TODAY},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "week")
+            msg = mock_send.call_args[0][1]
+            assert "缺主食" in msg
+            assert "TDEE" in msg
+            assert "2,200" in msg
+
+    def test_average_excludes_empty_days(self):
+        # TODAY=2026-03-03 (Tue). Only Tuesday has data, Monday has none.
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("600"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("600"), "date": TODAY},
+        ]
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=None), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "week")
+            msg = mock_send.call_args[0][1]
+            # avg = 1800 / 1 recorded day (Monday has no records, excluded)
+            assert "1,800" in msg
+
+    def test_goal_stats_shown_when_settings_present(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("600"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("500"), "date": TODAY},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "week")
+            msg = mock_send.call_args[0][1]
+            assert "達標天數" in msg
+            assert "超標天數" in msg
+
+    def test_fill_count_shown_in_average_note(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": TODAY},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        with patch("handlers.health.get_owner_id", return_value=OWNER_ID), \
+             patch("handlers.health.get_today", return_value=TODAY), \
+             patch("handlers.health.query_gsi1", return_value=meals), \
+             patch("handlers.health.get_item", return_value=settings), \
+             patch("handlers.health.send_message") as mock_send:
+            handle_health(USER_ID, CHAT_ID, "week")
+            msg = mock_send.call_args[0][1]
+            assert "TDEE 填補" in msg
