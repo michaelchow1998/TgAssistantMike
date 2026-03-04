@@ -11,6 +11,7 @@ ENTITY_FIN = "FIN"
 ENTITY_SUB = "SUB"
 ENTITY_COUNTER = "COUNTER"
 ENTITY_HEALTH = "HEALTH"
+ENTITY_FIN_RECURRING = "FIN_RECURRING"
 
 # ===== Schedule =====
 SCH_STATUS_ACTIVE = "active"
@@ -73,6 +74,10 @@ FIN_STATUS_PENDING = "pending"
 FIN_STATUS_PAID = "paid"
 FIN_STATUS_CANCELLED = "cancelled"
 
+FIN_RECURRING_STATUS_ACTIVE = "active"
+FIN_RECURRING_STATUS_PAUSED = "paused"
+FIN_RECURRING_STATUS_COMPLETED = "completed"
+
 FIN_CATEGORIES = {
     "bills":         {"display": "帳單", "emoji": "🧾"},
     "salary":        {"display": "薪資", "emoji": "💵"},
@@ -119,6 +124,8 @@ CONV_MODULE_EDIT_SUB = "edit_sub"
 CONV_MODULE_EDIT_FIN = "edit_fin"
 CONV_MODULE_HEALTH = "health"          # add_meal flow
 CONV_MODULE_SET_HEALTH = "set_health"  # set_health flow
+CONV_MODULE_ADD_RECURRING = "add_recurring"
+CONV_MODULE_EDIT_RECURRING = "edit_recurring"
 
 # ===== Health =====
 HEALTH_MEAL_BREAKFAST = "breakfast"
@@ -157,6 +164,8 @@ MODULE_DISPLAY_NAMES = {
     CONV_MODULE_EDIT_FIN: "編輯財務",
     CONV_MODULE_HEALTH: "記錄餐點",
     CONV_MODULE_SET_HEALTH: "設定健康目標",
+    CONV_MODULE_ADD_RECURRING:  "新增週期記錄",
+    CONV_MODULE_EDIT_RECURRING: "編輯週期記錄",
 }
 
 # ===== Commands that start conversations =====
@@ -165,4 +174,5 @@ CONVERSATION_STARTER_COMMANDS = {
     "/add_payment", "/add_income", "/add_expense",
     "/add_sub", "/resume_sub", "/edit_sub", "/edit_fin",
     "/set_health", "/add_meal",
+    "/add_recurring",
 }
