@@ -49,7 +49,14 @@ _HELP_MODULES = {
             "/paid `ID` — 標記已付\n"
             "/del\\_fin `ID` — 刪除財務記錄\n"
             "/edit\\_fin `ID` — 編輯財務記錄\n"
-            "/finance\\_summary `[YYYY-MM]` — 月度財務統計\n\n"
+            "/finance\\_summary `[YYYY-MM]` — 月度財務統計\n"
+            "/statement `[YYYY-MM]` — 月度收支明細\n"
+            "/add\\_recurring — 新增週期模板\n"
+            "/recurring — 查看週期模板\n"
+            "/edit\\_recurring `ID` — 編輯週期模板\n"
+            "/del\\_recurring `ID` — 刪除週期模板\n"
+            "/pause\\_recurring `ID` — 暫停週期模板\n"
+            "/resume\\_recurring `ID` — 恢復週期模板\n\n"
 
             "*📦 訂閱管理*\n"
             "/add\\_sub — 新增訂閱\n"
@@ -207,15 +214,33 @@ _HELP_MODULES = {
             "• `/edit_fin 3` — 編輯 ID 3 的財務記錄\n"
             "• 逾期款項會標記 ⚠️\n\n"
 
-            "*月度統計*\n"
+            "*月度統計與明細*\n"
             "• `/finance_summary` — 本月收支統計\n"
             "• `/finance_summary 2026-01` — 查看指定月份統計\n"
             "• 含收入、支出、已付款、待付款\n"
-            "• 自動計算淨額和支出分類明細\n\n"
+            "• 自動計算淨額和支出分類明細\n"
+            "• 顯示兩種淨額：已結清淨額（不含待付）、含待付淨額\n\n"
+            "• `/statement` — 本月收支明細列表\n"
+            "• `/statement 2026-01` — 查看指定月份明細\n\n"
+
+            "*週期財務模板*\n"
+            "自動每月生成固定收入或支出記錄（每月 1 日自動新增）\n"
+            "• /add\\_recurring — 新增週期模板\n"
+            "• /recurring — 查看所有週期模板\n"
+            "• `/edit_recurring 3` — 編輯週期模板\n"
+            "• `/del_recurring 3` — 刪除週期模板\n"
+            "• `/pause_recurring 3` — 暫停（不再自動生成）\n"
+            "• `/resume_recurring 3` — 恢復生成\n\n"
+
+            "*週期模板新增流程*\n"
+            "1️⃣ 標題 2️⃣ 金額 3️⃣ 類型（收入/支出）\n"
+            "4️⃣ 每月幾號 5️⃣ 分類 6️⃣ 結束月份（可跳過）\n"
+            "7️⃣ 備註（可跳過）8️⃣ 確認\n\n"
 
             "*💡 小提示*\n"
             "• 應付款項適合記錄帳單、房租等\n"
             "• 收入/支出記錄後不需額外操作\n"
+            "• 週期模板適合薪資、固定支出等每月重複項目\n"
             "• 每月用 /finance\\_summary 檢視花費分佈"
         ),
     },
@@ -450,6 +475,8 @@ _HELP_ALIASES = {
     "工作":         "work",
     "finance":      "finance",
     "財務":         "finance",
+    "recurring":    "finance",
+    "週期":         "finance",
     "subscription": "subscription",
     "sub":          "subscription",
     "訂閱":         "subscription",
