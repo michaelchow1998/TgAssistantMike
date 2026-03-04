@@ -5,7 +5,7 @@
 
 import re
 import logging
-from calendar import monthrange
+from calendar import monthrange, isleap
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -450,7 +450,6 @@ def _render_weekly_report(chat_id, owner_id, monday_str, today_str):
 
 
 def _render_yearly_report(chat_id, owner_id, year_str):
-    from calendar import isleap
     meals = query_gsi1(
         gsi1pk=f"USER#{owner_id}#HEALTH",
         sk_condition=Key("GSI1SK").begins_with(f"{year_str}-"),
