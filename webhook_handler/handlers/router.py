@@ -22,6 +22,8 @@ from bot_constants import (
     CONV_MODULE_EDIT_FIN,
     CONV_MODULE_HEALTH,
     CONV_MODULE_SET_HEALTH,
+    CONV_MODULE_ADD_RECURRING,
+    CONV_MODULE_EDIT_RECURRING,
 )
 
 logger = logging.getLogger(__name__)
@@ -282,6 +284,36 @@ def _route_command(user_id, chat_id, text):
         from handlers.health import handle_health
         handle_health(user_id, chat_id, args)
 
+    # ----- Recurring Finance -----
+    elif cmd == "/add_recurring":
+        from handlers.recurring import handle_add_recurring
+        handle_add_recurring(user_id, chat_id)
+
+    elif cmd == "/recurring":
+        from handlers.recurring import handle_recurring
+        handle_recurring(user_id, chat_id)
+
+    elif cmd == "/edit_recurring":
+        from handlers.recurring import handle_edit_recurring
+        handle_edit_recurring(user_id, chat_id, args)
+
+    elif cmd == "/del_recurring":
+        from handlers.recurring import handle_del_recurring
+        handle_del_recurring(user_id, chat_id, args)
+
+    elif cmd == "/pause_recurring":
+        from handlers.recurring import handle_pause_recurring
+        handle_pause_recurring(user_id, chat_id, args)
+
+    elif cmd == "/resume_recurring":
+        from handlers.recurring import handle_resume_recurring
+        handle_resume_recurring(user_id, chat_id, args)
+
+    # ----- Finance Statement -----
+    elif cmd == "/statement":
+        from handlers.finance import handle_statement
+        handle_statement(user_id, chat_id, args)
+
     # ----- Query -----
     elif cmd == "/summary":
         from handlers.query import handle_summary
@@ -378,6 +410,10 @@ def _handle_conversation_step(user_id, chat_id, text, conv):
         from handlers.health import handle_step as health_handle_step
         health_handle_step(user_id, chat_id, text, step, data)
 
+    elif module in (CONV_MODULE_ADD_RECURRING, CONV_MODULE_EDIT_RECURRING):
+        from handlers.recurring import handle_step as recurring_handle_step
+        recurring_handle_step(user_id, chat_id, text, step, data)
+
     else:
         send_message(
             chat_id,
@@ -429,6 +465,10 @@ def _handle_conversation_callback(user_id, chat_id, message_id, data, conv):
         from handlers.health import handle_callback as health_handle_callback
         health_handle_callback(user_id, chat_id, message_id, data, step, conv_data)
 
+    elif module in (CONV_MODULE_ADD_RECURRING, CONV_MODULE_EDIT_RECURRING):
+        from handlers.recurring import handle_callback as recurring_handle_callback
+        recurring_handle_callback(user_id, chat_id, message_id, data, step, conv_data)
+
     else:
         logger.warning(f"No callback handler for module: {module}")
 
@@ -472,4 +512,9 @@ def _handle_standalone_callback(user_id, chat_id, message_id, data):
     if data.startswith("delfin_"):
         from handlers.finance import handle_del_fin_callback
         handle_del_fin_callback(user_id, chat_id, message_id, data)
+        return
+
+    # ----- Recurring standalone callbacks (rec_confirm/cancel outside conversation) -----
+    if data.startswith("rec_"):
+        logger.warning(f"Received rec_ callback outside conversation: {data}")
         return
