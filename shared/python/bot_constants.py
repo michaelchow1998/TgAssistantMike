@@ -174,5 +174,5 @@ CONVERSATION_STARTER_COMMANDS = {
     "/add_payment", "/add_income", "/add_expense",
     "/add_sub", "/resume_sub", "/edit_sub", "/edit_fin",
     "/set_health", "/add_meal",
-    "/add_recurring",
+    "/add_recurring", "/edit_recurring",
 }

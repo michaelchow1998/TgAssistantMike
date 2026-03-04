@@ -697,7 +697,7 @@ def handle_statement(user_id, chat_id, args=""):
     if pending_payments:
         lines.append(f"⏳ *付款 — 待付（{len(pending_payments)} 筆）*")
         for item in pending_payments:
-            due = item.get("due_date", "")
+            due = item.get("date", "")
             due_s = f"（到期 {due[5:]}）" if due else ""
             lines.append(f"  • {item.get('title', '?')}：-{format_currency(Decimal(str(item.get('amount', 0))))}{due_s}")
 

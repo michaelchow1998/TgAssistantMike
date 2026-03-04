@@ -662,13 +662,14 @@ class ReminderService:
             day = t.get("day_of_month", 1)
             record_date = f"{month_prefix}-{day:02d}"
             new_ulid = generate_ulid()
+            sid = next_short_id("FIN")
             item = {
                 "PK": f"USER#{owner_id}",
                 "SK": f"FIN#{new_ulid}",
                 "GSI1PK": f"USER#{owner_id}#FIN#{fin_type}",
                 "GSI1SK": f"{record_date}#{new_ulid}",
                 "GSI3PK": "FIN",
-                "GSI3SK": f"{next_short_id('FIN'):05d}",
+                "GSI3SK": f"{sid:05d}",
                 "entity_type": "FIN",
                 "fin_type": fin_type,
                 "title": t.get("title", ""),
@@ -678,6 +679,7 @@ class ReminderService:
                 "notes": t.get("notes"),
                 "status": "paid",
                 "recurring_id": ulid,
+                "short_id": sid,
             }
             put_item(item)
             generated += 1

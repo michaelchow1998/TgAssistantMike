@@ -748,7 +748,6 @@ def _apply_edit_recurring(owner_id, user_id, data):
     pk = data["_pk"]
     sk = data["_sk"]
     ulid = data["_ulid"]
-    current_status = FIN_RECURRING_STATUS_ACTIVE  # keep status unchanged; re-read not needed
 
     update_item(
         pk=pk,
