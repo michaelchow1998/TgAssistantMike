@@ -256,3 +256,114 @@ class TestEveningPreviewIncludesHealth:
             svc.evening_preview()
             msg = mock_send.call_args[0][0]
             assert "今日健康" not in msg
+
+
+# ================================================================
+#  _generate_recurring_records — 1st of month auto-generation
+# ================================================================
+
+class TestFirstOfMonthGeneration:
+    def _make_template(self):
+        from decimal import Decimal
+        return {
+            "SK": "FIN_RECURRING#ULID001",
+            "title": "薪水",
+            "amount": Decimal("20000"),
+            "fin_type": "income",
+            "day_of_month": 1,
+            "category": "salary",
+            "end_month": None,
+            "status": "active",
+        }
+
+    def test_generates_record_on_first_of_month(self):
+        svc = _make_service(today_str="2026-04-01")
+        template = self._make_template()
+        with patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID), \
+             patch("reminders.reminder_service.get_active_recurring_templates", return_value=[template]), \
+             patch("reminders.reminder_service.get_fin_records_for_month", return_value=[]), \
+             patch("reminders.reminder_service.put_item") as mock_put, \
+             patch("reminders.reminder_service.next_short_id", return_value=1), \
+             patch("reminders.reminder_service.generate_ulid", return_value="NEWULID"):
+            result = svc._generate_recurring_records()
+            assert mock_put.called
+            assert result == 1
+            # Verify the item structure
+            item = mock_put.call_args[0][0]
+            assert item["fin_type"] == "income"
+            assert item["title"] == "薪水"
+            assert item["recurring_id"] == "ULID001"
+            assert item["date"] == "2026-04-01"
+
+    def test_skips_if_record_already_exists(self):
+        from decimal import Decimal
+        svc = _make_service(today_str="2026-04-01")
+        template = self._make_template()
+        existing_record = {
+            "SK": "FIN#EXISTING",
+            "recurring_id": "ULID001",
+            "fin_type": "income",
+        }
+        with patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID), \
+             patch("reminders.reminder_service.get_active_recurring_templates", return_value=[template]), \
+             patch("reminders.reminder_service.get_fin_records_for_month", return_value=[existing_record]), \
+             patch("reminders.reminder_service.put_item") as mock_put:
+            result = svc._generate_recurring_records()
+            assert not mock_put.called
+            assert result == 0
+
+    def test_not_first_of_month_skips(self):
+        svc = _make_service(today_str="2026-04-05")
+        with patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID), \
+             patch("reminders.reminder_service.get_active_recurring_templates") as mock_tpl, \
+             patch("reminders.reminder_service.put_item") as mock_put:
+            result = svc._generate_recurring_records()
+            assert not mock_tpl.called
+            assert not mock_put.called
+            assert result == 0
+
+    def test_skips_template_past_end_month(self):
+        svc = _make_service(today_str="2026-04-01")
+        template = self._make_template()
+        template["end_month"] = "2026-03"  # already past
+        with patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID), \
+             patch("reminders.reminder_service.get_active_recurring_templates", return_value=[template]), \
+             patch("reminders.reminder_service.get_fin_records_for_month", return_value=[]), \
+             patch("reminders.reminder_service.put_item") as mock_put:
+            result = svc._generate_recurring_records()
+            assert not mock_put.called
+            assert result == 0
+
+    def test_includes_template_within_end_month(self):
+        svc = _make_service(today_str="2026-04-01")
+        template = self._make_template()
+        template["end_month"] = "2026-06"  # not yet past
+        with patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID), \
+             patch("reminders.reminder_service.get_active_recurring_templates", return_value=[template]), \
+             patch("reminders.reminder_service.get_fin_records_for_month", return_value=[]), \
+             patch("reminders.reminder_service.put_item") as mock_put, \
+             patch("reminders.reminder_service.next_short_id", return_value=1), \
+             patch("reminders.reminder_service.generate_ulid", return_value="NEWULID"):
+            result = svc._generate_recurring_records()
+            assert mock_put.called
+            assert result == 1
+
+    def test_morning_briefing_includes_generated_count(self):
+        svc = _make_service(today_str="2026-04-01")
+        template = self._make_template()
+        with patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID), \
+             patch("reminders.reminder_service.get_active_recurring_templates", return_value=[template]), \
+             patch("reminders.reminder_service.get_fin_records_for_month", return_value=[]), \
+             patch("reminders.reminder_service.put_item"), \
+             patch("reminders.reminder_service.next_short_id", return_value=1), \
+             patch("reminders.reminder_service.generate_ulid", return_value="NEWULID"), \
+             patch("reminders.reminder_service.get_schedules_effective_on", return_value=[]), \
+             patch("reminders.reminder_service.get_pending_todos", return_value=[]), \
+             patch("reminders.reminder_service.get_pending_payments", return_value=[]), \
+             patch("reminders.reminder_service.get_active_subscriptions", return_value=[]), \
+             patch("reminders.reminder_service.get_active_work", return_value=[]), \
+             patch("reminders.reminder_service.send") as mock_send:
+            svc.morning_briefing()
+            msg = mock_send.call_args[0][0]
+            assert "週期財務記錄" in msg
+            assert "1" in msg

@@ -21,6 +21,9 @@ from datetime import datetime, timedelta
 
 from bot_config import get_owner_id
 from bot_constants import HEALTH_MEAL_DISPLAY
+from bot_db import put_item
+from bot_utils import generate_ulid
+from bot_db import get_next_short_id as next_short_id
 
 import pytz                                        # dependencies layer
 
@@ -33,6 +36,8 @@ from .db_queries import (
     get_active_work,
     get_today_meals,
     get_health_settings,
+    get_active_recurring_templates,
+    get_fin_records_for_month,
 )
 from .notifier import (
     send,
@@ -90,6 +95,11 @@ class ReminderService:
             f"🌅 *早安！今日摘要*\n"
             f"📆 {self.today_s}（{self.wd}）\n{DIV}"
         ]
+
+        # Auto-generate recurring records on the 1st of month
+        generated = self._generate_recurring_records()
+        if generated > 0:
+            secs.append(f"🔄 已自動新增 {generated} 筆週期財務記錄")
 
         for builder in [
             self._sec_schedules,
@@ -620,3 +630,56 @@ class ReminderService:
                 lines.append(f"每日目標：{daily_goal:,} kcal  超出：{abs(remaining):,} kcal ⚠️")
 
         return "\n".join(lines)
+
+    # ============================================================
+    #  Auto-generate Recurring Finance Records
+    # ============================================================
+
+    def _generate_recurring_records(self):
+        """Auto-generate FIN records from recurring templates on the 1st of the month."""
+        if self.today.day != 1:
+            return 0
+
+        owner_id = get_owner_id()
+        templates = get_active_recurring_templates(owner_id)
+        month_prefix = self.today_s[:7]
+        generated = 0
+
+        for t in templates:
+            end_month = t.get("end_month")
+            if end_month and end_month < month_prefix:
+                continue  # past end_month, skip
+
+            fin_type = t.get("fin_type", "income")
+            ulid = t["SK"].split("#", 1)[1]
+
+            # Dedup: skip if a FIN record with this recurring_id already exists this month
+            existing = get_fin_records_for_month(owner_id, fin_type, month_prefix)
+            if any(r.get("recurring_id") == ulid for r in existing):
+                continue
+
+            # Create the FIN record
+            day = t.get("day_of_month", 1)
+            record_date = f"{month_prefix}-{day:02d}"
+            new_ulid = generate_ulid()
+            item = {
+                "PK": f"USER#{owner_id}",
+                "SK": f"FIN#{new_ulid}",
+                "GSI1PK": f"USER#{owner_id}#FIN#{fin_type}",
+                "GSI1SK": f"{record_date}#{new_ulid}",
+                "GSI3PK": "FIN",
+                "GSI3SK": f"{next_short_id('FIN'):05d}",
+                "entity_type": "FIN",
+                "fin_type": fin_type,
+                "title": t.get("title", ""),
+                "amount": t.get("amount"),
+                "date": record_date,
+                "category": t.get("category", "other"),
+                "notes": t.get("notes"),
+                "status": "paid",
+                "recurring_id": ulid,
+            }
+            put_item(item)
+            generated += 1
+
+        return generated

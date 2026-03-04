@@ -163,3 +163,23 @@ def get_today_meals(owner_id, date_str):
 def get_health_settings(owner_id):
     """Health settings (TDEE + deficit target)."""
     return _db_get_item(f"USER#{owner_id}", "HEALTH_SETTINGS#active")
+
+
+# ================================================================
+#  Recurring Finance
+# ================================================================
+
+def get_active_recurring_templates(owner_id):
+    """All active recurring finance templates for the given owner."""
+    return _db_query_gsi1(
+        gsi1pk=f"USER#{owner_id}#FIN_RECURRING",
+        sk_condition=Key("GSI1SK").begins_with("active#"),
+    )
+
+
+def get_fin_records_for_month(owner_id, fin_type, month_prefix):
+    """FIN records of a given type for a month prefix (for dedup check)."""
+    return _db_query_gsi1(
+        gsi1pk=f"USER#{owner_id}#FIN#{fin_type}",
+        sk_condition=Key("GSI1SK").begins_with(month_prefix),
+    )
