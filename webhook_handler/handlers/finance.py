@@ -625,6 +625,94 @@ def handle_finance_summary(user_id, chat_id, args=""):
 
 
 # ================================================================
+#  /statement — 月度收支明細
+# ================================================================
+
+def handle_statement(user_id, chat_id, args=""):
+    import re
+    owner_id = get_owner_id()
+    today_date = get_today_date()
+
+    if args and args.strip():
+        m = re.match(r"^(\d{4}-(?:0[1-9]|1[0-2]))$", args.strip())
+        if not m:
+            send_message(chat_id, "❌ 格式錯誤，請使用 `YYYY-MM`，例如：`/statement 2026-02`")
+            return
+        month_prefix = m.group(1)
+    else:
+        month_prefix = today_date.strftime("%Y-%m")
+
+    income_items = query_gsi1(
+        gsi1pk=f"USER#{owner_id}#FIN#{FIN_TYPE_INCOME}",
+        sk_condition=Key("GSI1SK").begins_with(month_prefix),
+    )
+    expense_items = query_gsi1(
+        gsi1pk=f"USER#{owner_id}#FIN#{FIN_TYPE_EXPENSE}",
+        sk_condition=Key("GSI1SK").begins_with(month_prefix),
+    )
+    payment_items = query_gsi1(
+        gsi1pk=f"USER#{owner_id}#FIN#{FIN_TYPE_PAYMENT}",
+        sk_condition=Key("GSI1SK").begins_with(month_prefix),
+    )
+    paid_payments = [p for p in payment_items if p.get("status") == FIN_STATUS_PAID]
+    pending_payments = [p for p in payment_items if p.get("status") == FIN_STATUS_PENDING]
+
+    total_income = sum(Decimal(str(i.get("amount", 0))) for i in income_items)
+    total_expense = sum(Decimal(str(i.get("amount", 0))) for i in expense_items)
+    total_paid = sum(Decimal(str(p.get("amount", 0))) for p in paid_payments)
+    total_pending = sum(Decimal(str(p.get("amount", 0))) for p in pending_payments)
+
+    net_settled = total_income - total_expense - total_paid
+    net_with_pending = net_settled - total_pending
+
+    if not income_items and not expense_items and not payment_items:
+        send_message(chat_id, f"💰 *{month_prefix} 收支明細*\n\n本月尚無任何財務記錄。")
+        return
+
+    lines = [f"💰 *{month_prefix} 收支明細*", "──────────────────────"]
+
+    if income_items:
+        lines.append(f"📈 *收入（{len(income_items)} 筆）*")
+        for item in income_items:
+            cat_info = FIN_CATEGORIES.get(item.get("category", "other"), {})
+            emoji = cat_info.get("emoji", "💵")
+            lines.append(f"  {emoji} {item.get('title', '?')}：+{format_currency(Decimal(str(item.get('amount', 0))))}")
+        lines.append(f"  小計：+{format_currency(total_income)}")
+        lines.append("")
+
+    if expense_items:
+        lines.append(f"📉 *支出（{len(expense_items)} 筆）*")
+        for item in expense_items:
+            cat_info = FIN_CATEGORIES.get(item.get("category", "other"), {})
+            emoji = cat_info.get("emoji", "💸")
+            lines.append(f"  {emoji} {item.get('title', '?')}：-{format_currency(Decimal(str(item.get('amount', 0))))}")
+        lines.append(f"  小計：-{format_currency(total_expense)}")
+        lines.append("")
+
+    if paid_payments:
+        lines.append(f"💳 *付款 — 已付（{len(paid_payments)} 筆）*")
+        for item in paid_payments:
+            lines.append(f"  • {item.get('title', '?')}：-{format_currency(Decimal(str(item.get('amount', 0))))}")
+
+    if pending_payments:
+        lines.append(f"⏳ *付款 — 待付（{len(pending_payments)} 筆）*")
+        for item in pending_payments:
+            due = item.get("due_date", "")
+            due_s = f"（到期 {due[5:]}）" if due else ""
+            lines.append(f"  • {item.get('title', '?')}：-{format_currency(Decimal(str(item.get('amount', 0))))}{due_s}")
+
+    lines.append("──────────────────────")
+    settled_sign = "+" if net_settled >= 0 else ""
+    pending_sign = "+" if net_with_pending >= 0 else ""
+    settled_emoji = "✅" if net_settled >= 0 else "📉"
+    pending_emoji = "📊"
+    lines.append(f"{settled_emoji} 已結清淨額：{settled_sign}{format_currency(net_settled)}")
+    lines.append(f"{pending_emoji} 含待付淨額：{pending_sign}{format_currency(net_with_pending)}")
+
+    send_message(chat_id, "\n".join(lines))
+
+
+# ================================================================
 #  /del_fin ID — 刪除財務記錄
 # ================================================================
 
