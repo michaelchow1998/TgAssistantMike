@@ -19,6 +19,8 @@ import os
 import logging
 from datetime import datetime, timedelta
 
+from bot_config import get_owner_id
+
 import pytz                                        # dependencies layer
 
 from .db_queries import (
@@ -28,6 +30,8 @@ from .db_queries import (
     get_pending_payments,
     get_active_subscriptions,
     get_active_work,
+    get_today_meals,
+    get_health_settings,
 )
 from .notifier import (
     send,
@@ -327,6 +331,11 @@ class ReminderService:
                 )
             secs.append("\n".join(lines))
 
+        # ── 今日健康 ──
+        h = self._sec_health()
+        if h:
+            secs.append(h)
+
         if len(secs) == 1:
             secs.append("✨ 明天暫無待處理事項，好好休息！")
 
@@ -557,5 +566,59 @@ class ReminderService:
             money_parts.append(f"訂閱 {s_due} 項近期扣款")
         if money_parts:
             lines.append(f"  {'∣'.join(money_parts)}")
+
+        return "\n".join(lines)
+
+    # ============================================================
+    #  Evening Section Builder — Health
+    # ============================================================
+
+    _HEALTH_MEAL_DISPLAY = {
+        "breakfast": ("🌅", "早餐"),
+        "lunch":     ("☀️", "午餐"),
+        "dinner":    ("🌙", "晚餐"),
+        "other":     ("🍎", "其他"),
+    }
+
+    def _sec_health(self):
+        owner_id = get_owner_id()
+        meals = get_today_meals(owner_id, self.today_s)
+        if not meals:
+            return None
+
+        settings = get_health_settings(owner_id)
+        meal_map = {m["meal_type"]: int(m["calories"]) for m in meals}
+
+        lines = ["🥗 *今日健康*"]
+        actual_total = 0
+        for meal_type in ("breakfast", "lunch", "dinner", "other"):
+            emoji, label = self._HEALTH_MEAL_DISPLAY[meal_type]
+            if meal_type in meal_map:
+                cal = meal_map[meal_type]
+                actual_total += cal
+                lines.append(f"{emoji} {label}：{cal:,} kcal")
+            else:
+                lines.append(f"{emoji} {label}：（未記錄）")
+
+        lines.append(DIV)
+        lines.append(f"總攝取：{actual_total:,} kcal")
+
+        if settings:
+            tdee = int(settings["tdee"])
+            deficit = int(settings["deficit"])
+            daily_goal = tdee - deficit
+
+            main_meals = {"breakfast", "lunch", "dinner"}
+            if not main_meals.issubset(meal_map.keys()):
+                effective = tdee
+                lines.append(f"⚠️ 缺少主食記錄，以 TDEE 計算：{effective:,} kcal")
+            else:
+                effective = actual_total
+
+            remaining = daily_goal - effective
+            if remaining >= 0:
+                lines.append(f"每日目標：{daily_goal:,} kcal  剩餘：{remaining:,} kcal ✅")
+            else:
+                lines.append(f"每日目標：{daily_goal:,} kcal  超出：{abs(remaining):,} kcal ⚠️")
 
         return "\n".join(lines)

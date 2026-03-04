@@ -124,3 +124,135 @@ class TestSecTodos:
         svc = _make_service()
         result = svc._sec_todos({"todos": todos})
         assert "2" in result
+
+
+# ================================================================
+#  _sec_health — evening health section
+# ================================================================
+
+class TestSecHealth:
+    def test_no_meals_returns_none(self):
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_today_meals", return_value=[]), \
+             patch("reminders.reminder_service.get_health_settings", return_value=None), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID):
+            result = svc._sec_health()
+            assert result is None
+
+    def test_meals_present_shows_meal_lines(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("700"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("500"), "date": TODAY},
+        ]
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_today_meals", return_value=meals), \
+             patch("reminders.reminder_service.get_health_settings", return_value=None), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID):
+            result = svc._sec_health()
+            assert result is not None
+            assert "早餐" in result
+            assert "600" in result
+            assert "午餐" in result
+            assert "700" in result
+            assert "晚餐" in result
+            assert "500" in result
+
+    def test_unrecorded_meal_shown_as_not_recorded(self):
+        meals = [{"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY}]
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_today_meals", return_value=meals), \
+             patch("reminders.reminder_service.get_health_settings", return_value=None), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID):
+            result = svc._sec_health()
+            assert "（未記錄）" in result
+
+    def test_no_settings_hides_goal_line(self):
+        meals = [{"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY}]
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_today_meals", return_value=meals), \
+             patch("reminders.reminder_service.get_health_settings", return_value=None), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID):
+            result = svc._sec_health()
+            assert "每日目標" not in result
+
+    def test_all_main_meals_with_settings_shows_goal_progress(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("500"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("600"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("500"), "date": TODAY},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_today_meals", return_value=meals), \
+             patch("reminders.reminder_service.get_health_settings", return_value=settings), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID):
+            result = svc._sec_health()
+            assert "每日目標" in result
+            assert "1,700" in result   # goal = 2200 - 500
+            assert "剩餘" in result    # 1700 - 1600 = 100 remaining
+            assert "✅" in result
+
+    def test_over_goal_shows_surplus(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("700"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("800"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("500"), "date": TODAY},
+        ]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_today_meals", return_value=meals), \
+             patch("reminders.reminder_service.get_health_settings", return_value=settings), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID):
+            result = svc._sec_health()
+            assert "超出" in result
+            assert "⚠️" in result
+
+    def test_missing_main_meal_shows_tdee_fill_warning(self):
+        meals = [{"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY}]
+        settings = {"tdee": Decimal("2200"), "deficit": Decimal("500")}
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_today_meals", return_value=meals), \
+             patch("reminders.reminder_service.get_health_settings", return_value=settings), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID):
+            result = svc._sec_health()
+            assert "缺少主食記錄" in result
+            assert "TDEE" in result
+            assert "2,200" in result
+
+
+class TestEveningPreviewIncludesHealth:
+    def test_health_section_included_when_meals_exist(self):
+        meals = [
+            {"meal_type": "breakfast", "calories": Decimal("600"), "date": TODAY},
+            {"meal_type": "lunch",     "calories": Decimal("700"), "date": TODAY},
+            {"meal_type": "dinner",    "calories": Decimal("500"), "date": TODAY},
+        ]
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_schedules_effective_on", return_value=[]), \
+             patch("reminders.reminder_service.get_pending_todos", return_value=[]), \
+             patch("reminders.reminder_service.get_pending_payments", return_value=[]), \
+             patch("reminders.reminder_service.get_active_subscriptions", return_value=[]), \
+             patch("reminders.reminder_service.get_active_work", return_value=[]), \
+             patch("reminders.reminder_service.get_today_meals", return_value=meals), \
+             patch("reminders.reminder_service.get_health_settings", return_value=None), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID), \
+             patch("reminders.reminder_service.send") as mock_send:
+            svc.evening_preview()
+            msg = mock_send.call_args[0][0]
+            assert "今日健康" in msg
+
+    def test_health_section_omitted_when_no_meals(self):
+        svc = _make_service()
+        with patch("reminders.reminder_service.get_schedules_effective_on", return_value=[]), \
+             patch("reminders.reminder_service.get_pending_todos", return_value=[]), \
+             patch("reminders.reminder_service.get_pending_payments", return_value=[]), \
+             patch("reminders.reminder_service.get_active_subscriptions", return_value=[]), \
+             patch("reminders.reminder_service.get_active_work", return_value=[]), \
+             patch("reminders.reminder_service.get_today_meals", return_value=[]), \
+             patch("reminders.reminder_service.get_health_settings", return_value=None), \
+             patch("reminders.reminder_service.get_owner_id", return_value=OWNER_ID), \
+             patch("reminders.reminder_service.send") as mock_send:
+            svc.evening_preview()
+            msg = mock_send.call_args[0][0]
+            assert "今日健康" not in msg
