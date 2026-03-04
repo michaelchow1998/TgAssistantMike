@@ -154,7 +154,6 @@ def get_active_work():
 
 def get_today_meals(owner_id, date_str):
     """Today's health meal records for the reminder health section."""
-    from boto3.dynamodb.conditions import Key
     return _db_query_gsi1(
         gsi1pk=f"USER#{owner_id}#HEALTH",
         sk_condition=Key("GSI1SK").begins_with(date_str),
