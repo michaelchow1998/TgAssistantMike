@@ -20,7 +20,7 @@
 import logging
 from boto3.dynamodb.conditions import Key, Attr
 
-from bot_db import query_gsi1 as _db_query_gsi1
+from bot_db import query_gsi1 as _db_query_gsi1, get_item as _db_get_item
 from bot_config import get_owner_id
 from bot_constants import SCH_STATUS_ACTIVE, SCH_TYPE_PERIOD, SCH_TYPE_REPEAT
 from bot_utils import is_repeat_occurrence
@@ -146,3 +146,21 @@ def get_active_subscriptions():
 def get_active_work():
     """取得所有 in_progress 工作項目。"""
     return _query_gsi1("WORK#in_progress")
+
+
+# ================================================================
+#  Health
+# ================================================================
+
+def get_today_meals(owner_id, date_str):
+    """Today's health meal records for the reminder health section."""
+    from boto3.dynamodb.conditions import Key
+    return _db_query_gsi1(
+        gsi1pk=f"USER#{owner_id}#HEALTH",
+        sk_condition=Key("GSI1SK").begins_with(date_str),
+    )
+
+
+def get_health_settings(owner_id):
+    """Health settings (TDEE + deficit target)."""
+    return _db_get_item(f"USER#{owner_id}", "HEALTH_SETTINGS#active")
