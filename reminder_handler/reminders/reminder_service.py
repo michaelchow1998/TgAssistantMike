@@ -20,6 +20,7 @@ import logging
 from datetime import datetime, timedelta
 
 from bot_config import get_owner_id
+from bot_constants import HEALTH_MEAL_DISPLAY
 
 import pytz                                        # dependencies layer
 
@@ -573,13 +574,6 @@ class ReminderService:
     #  Evening Section Builder — Health
     # ============================================================
 
-    _HEALTH_MEAL_DISPLAY = {
-        "breakfast": ("🌅", "早餐"),
-        "lunch":     ("☀️", "午餐"),
-        "dinner":    ("🌙", "晚餐"),
-        "other":     ("🍎", "其他"),
-    }
-
     def _sec_health(self):
         owner_id = get_owner_id()
         meals = get_today_meals(owner_id, self.today_s)
@@ -592,7 +586,7 @@ class ReminderService:
         lines = ["🥗 *今日健康*"]
         actual_total = 0
         for meal_type in ("breakfast", "lunch", "dinner", "other"):
-            emoji, label = self._HEALTH_MEAL_DISPLAY[meal_type]
+            info = HEALTH_MEAL_DISPLAY[meal_type]; emoji, label = info["emoji"], info["label"]
             if meal_type in meal_map:
                 cal = meal_map[meal_type]
                 actual_total += cal
@@ -608,6 +602,9 @@ class ReminderService:
             deficit = int(settings["deficit"])
             daily_goal = tdee - deficit
 
+            # At 21:00 the day is nearly complete. If a main meal is unrecorded we
+            # substitute the full TDEE rather than show a falsely optimistic figure.
+            # The /health command shows raw totals regardless of completeness.
             main_meals = {"breakfast", "lunch", "dinner"}
             if not main_meals.issubset(meal_map.keys()):
                 effective = tdee
