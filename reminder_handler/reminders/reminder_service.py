@@ -373,10 +373,13 @@ class ReminderService:
             elif dd <= self.end_s:
                 upcoming.append(t)
 
-        if not overdue and not today_t and not upcoming:
-            return None
+        count = len(items)
+        has_urgent = overdue or today_t or upcoming
 
-        lines = ["📝 *待辦事項*"]
+        if not has_urgent:
+            return f"📝 *待辦事項（共 {count} 項）*\n無近期到期項目。"
+
+        lines = [f"📝 *待辦事項（共 {count} 項）*"]
 
         if overdue:
             lines.append(f"⚠️ *逾期 {len(overdue)} 項*")

@@ -69,3 +69,58 @@ class TestGetHealthSettings:
              patch("reminders.db_queries._db_query_gsi1"):
             result = get_health_settings(OWNER_ID)
             assert result == settings
+
+
+# ================================================================
+#  _sec_todos — morning todo section
+# ================================================================
+
+class TestSecTodos:
+    def _make_todo(self, title, due_date=""):
+        return {"title": title, "due_date": due_date, "priority": "medium"}
+
+    def test_no_todos_returns_none(self):
+        svc = _make_service()
+        result = svc._sec_todos({"todos": []})
+        assert result is None
+
+    def test_todos_all_no_due_date_shows_count(self):
+        # Todos with no due date → not urgently due → should still show count
+        todos = [
+            self._make_todo("Task A"),
+            self._make_todo("Task B"),
+            self._make_todo("Task C"),
+        ]
+        svc = _make_service()
+        result = svc._sec_todos({"todos": todos})
+        assert result is not None
+        assert "3" in result
+        assert "無近期到期" in result
+
+    def test_todos_with_no_urgent_items_shows_count(self):
+        # Todos due far in the future (beyond 3-day window) → show count
+        todos = [self._make_todo("Far todo", due_date="2026-12-31")]
+        svc = _make_service()
+        result = svc._sec_todos({"todos": todos})
+        assert result is not None
+        assert "1" in result
+        assert "無近期到期" in result
+
+    def test_urgent_todos_show_count_in_header(self):
+        # Overdue todo → normal urgent display, but count in header
+        todos = [self._make_todo("Overdue", due_date="2026-02-01")]
+        svc = _make_service()
+        result = svc._sec_todos({"todos": todos})
+        assert result is not None
+        assert "1" in result           # count
+        assert "逾期" in result        # urgency shown
+
+    def test_count_includes_no_due_date_todos(self):
+        # 1 overdue + 1 no-due-date → count = 2
+        todos = [
+            self._make_todo("Overdue", due_date="2026-02-01"),
+            self._make_todo("No due"),
+        ]
+        svc = _make_service()
+        result = svc._sec_todos({"todos": todos})
+        assert "2" in result
